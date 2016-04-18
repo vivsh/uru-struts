@@ -1,0 +1,29 @@
+{
+  "name": "uru-struts",
+  "version": "0.0.1",
+  "description": "framework for uru virtualdom library",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm run test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vivsh/uru-struts.git"
+  },
+  "keywords": [
+    "uru",
+    "virtual-dom",
+    "framework"
+  ],
+  "author": "vivek",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/vivsh/uru-struts/issues"
+  },
+  "homepage": "https://github.com/vivsh/uru-struts#readme",
+  "dependencies": {
+    "jquery": "^2.2.3",
+    "lodash": "^4.11.1",
+    "uru": "^0.1.10"
+  }
+}
