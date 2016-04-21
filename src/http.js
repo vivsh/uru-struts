@@ -24,14 +24,22 @@ function HttpResponse(jqXHR, textStatus, result){
 
 function sendRequest(type, url, data){
     "use strict";
-    var result = $.Deferred();
-    return $.ajax({
-        type: "GET",
+    var result = $.Deferred(), processData = false;
+    if(data){
+        if(type === 'GET'){
+            data = data;
+            processData = true;
+        }else{
+            data = JSON.stringify(data);
+        }
+    }
+    $.ajax({
+        type: type,
         url: url,
-        processData: false,
+        processData: processData,
         contentType:  "application/json",
         dataType: "json",
-        data: data ? JSON.stringify(data) : data
+        data: data
     }).always(function(){
         u.redraw();
     }).done(function(data, textStatus, jqXHR){
@@ -79,7 +87,7 @@ function submitForm(formElement) {
     var url = formElement.action || "";
     var method = formElement.method || "GET";
     var formData = new FormData(formElement);
-    return $.ajax({
+    return $.ajax(url, {
         type: method,
         processData: false,
         contentType: false,

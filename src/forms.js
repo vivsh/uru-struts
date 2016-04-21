@@ -1,146 +1,202 @@
-
 var u = require("uru"),
-    _ = require("underscore"),
+    _ = require("lodash"),
     utils = require("./utils"),
-    fields = require("./fields");
+    fields = require("./fields"),
+    http = require("./http"),
+    routes = require("./routes");
 
 
 var Form = u.utils.Class({
-    constructor: function(data){
-       "use strict";
+    constructor: function (data) {
+        "use strict";
         var fieldset = {}, self = this;
-        data = this.data = data || this.getDataFromUrl() || {};
-        _.each(this.fields, function(value, key){
+        this.data = _.extend({}, this.getDataFromUrl(), data);
+        _.each(this.fields, function (value, key) {
             var options = _.isString(value) ? {type: value} : value;
             options = _.extend({name: key}, options);
             fieldset[options.name] = fields.createField(options);
         });
         this.fields = fieldset;
-        // if(this.data){
-        //     _.each(this.data, function(v, k){
-        //         fields[k].value = v;
-        //     });
-        // }
-        this.onSubmit = _.bind(this.onSubmit, this);
-
+        if (this.data) {
+            _.each(this.data, function (v, k) {
+                if (k in fieldset) {
+                    fieldset[k].setValue(v, true);
+                }
+            });
+        }
+        this.lastUrl = location.href;
     },
     getDataFromUrl: function () {
-        return;
+        return utils.parseUri(location.href).query;
     },
-    field: function(name){
+    field: function (name) {
         "use strict";
         return this.fields[name].render();
     },
-    fieldSet: function(fieldNames){
+    fieldSet: function (fieldNames) {
         "use strict";
         return new FieldSet(this, fieldNames);
     },
-    isValid: function(){
+    isValid: function () {
         "use strict";
-        return _.all(this.fields, function(field, name){
+        return _.all(this.fields, function (field, name) {
             return field.isValid();
         });
     },
-    cleanedData: function(){
+    validate: function () {
+      _.each(this.fields, function(f){
+          "use strict";
+            if(!f.bound){
+                f.setValue(null, true);
+            }
+      });
+    },
+    cleanedData: function () {
         "use strict";
         var result = {};
-        _.each(this.fields, function(field){
+        _.each(this.fields, function (field) {
             result[field.name] = field.getValue();
         });
         return result;
     },
-    serialize: function(){
+    serialize: function () {
         "use strict";
-        var result = {};
-        _.each(this.fields, function(field){
-            if(!field.isEmpty(field.getValue())){
-                result[field.name] = field.toStr();
-            }
-        });
-        return result;
-    },
-    onSubmit: function(event){
-        "use strict";
-        var el = event.target;
-        var data = this.cleanedData();
-        var method = (el.method || "get").toUpperCase();
-        // if(!this.isValid()){
-        //     event.preventDefault();
-        //     return;
-        // }
-        console.log(data);
-        console.log(this.serialize())
-        var parts = utils.parseUri(el.action);
-        parts.query = this.serialize();
-        var url = utils.buildUri(parts);
-        u.route(url, true);
-        if(method === 'GET'){
-            event.preventDefault();
-        }else{
-            var formData = new FormData();
-            
+        if(this.component){
+            return this.component.serialize();
         }
+        return null;
+        // var result = {};
+        // _.each(this.fields, function (field) {
+        //     if (!field.isEmpty(field.getValue())) {
+        //         result[field.name] = field.toStr();
+        //     }
+        // });
+        // return result;
     }
 });
 
 
-function FieldSet(form, fieldNames){
-       "use strict";
-        var fields = {}, self = this;
-        _.each(fieldNames, function(name, i){
-            fields[name] = new Field(self, form.field(name));
-        });
-        this.fields = fields;
+function FieldSet(form, fieldNames) {
+    "use strict";
+    var fields = {}, self = this;
+    _.each(fieldNames, function (name, i) {
+        fields[name] = new Field(self, form.field(name));
+    });
+    this.fields = fields;
 }
 
 FieldSet.prototype = {
     constructor: FieldSet,
-    field: function(name){
+    field: function (name) {
         "use strict";
         return this.fields[name].render();
     },
-    isValid: function(){
+    isValid: function () {
         "use strict";
-        return _.all(this.fields, function(field, name){
+        return _.all(this.fields, function (field, name) {
             return field.isValid();
         });
     }
 };
 
 
-
 u.component("struts-form", {
-   initialize: function(){
-       "use strict";
-   },
-   getContext: function(ctx){
-       "use strict";
-       return {
-           valid: ctx.form.isValid()
-       }
-   },
-   render: function(ctx, content){
-       "use strict";
+    initialize: function () {
+        "use strict";
+        _.bindAll(this, 'onChange', 'onSubmit');
+        this.onSubmit = _.debounce(this.onSubmit, 250, true);
+    },
+    onMount: function () {
+        "use strict";
+        var el = $(this.el);
+        el.on("change", this.onChange);
+        el.on("submit", this.onSubmit);
+        // el.on("focusout", this.onChange)
+    },
+    onUnmount: function () {
+        var el = $(this.el);
+        el.off();
+    },
+    render: function (ctx, content) {
+        "use strict";
+        ctx.form.component = this;
         return u("-form",
             {
                 method: ctx.method,
                 action: ctx.action,
                 classes: ['u-form', ctx.classes],
-                onsubmit: ctx.form.onSubmit
+                onsubmit: this.onSubmit
             },
-            u("div.u-form-errors.u-non-field-errors", {show: !ctx.form.isValid()},
-                ctx.message || "There are some errors in this form"
+            u("div.u-non-field-errors.text-center", {class: {"has-error": !ctx.form.isValid()}},
+                u("div.u-form-errors",
+                    u("div.callout.alert",
+                        ctx.message || "There are some errors in this form"
+                    )
+                )
             ),
             content
         );
-   },
-    onMount: function () {
-        var el = this.el;
-        $(el).on("submit", this.onSubmit);
     },
-    onUnmount: function(){
+    serialize: function () {
+        return $(this.el).serialize();
+    },
+    onChange: function (event) {
         "use strict";
-        $(this.el).off();
+        if (this.context.autosubmit) {
+            this.onSubmit(event)
+        }
+    },
+    onSubmit: function (event) {
+        "use strict";
+        var el = u.dom.closest(event.target, "FORM"), ctx = this.context,
+            owner = this.$owner;
+        var form = this.context.form;
+        var method = (el.method || "get").toUpperCase();
+        var parts = utils.parseUri(el.action || location.href);
+        parts.query = $(el).serialize();
+        var url = utils.buildUri(parts);
+
+        ctx.form.validate();
+
+        if (!ctx.form.isValid() || url === this.lastUrl) {
+            event.preventDefault();
+            return;
+        }
+
+        if (ctx.onsuccess) {
+            ctx.onsuccess.call(owner);
+        }
+
+        this.lastUrl = url;
+
+        if (method === 'GET') {
+            routes.route(url);
+            event.preventDefault();
+        } else {
+            event.preventDefault();
+            http.submit(el).done(function(data, textStatus, jqXHR){
+                if(ctx.onsuccess){
+                    ctx.onsuccess(data, textStatus, jqXHR);
+                }else{
+                    routes.route(data.nextUrl);
+                }
+            }).fail(function(jqXHR, textStatus, error){
+                var status = jqXHR.status;
+                if(status === 422){
+                    var errors = jqXHR.responseJSON;
+                    _.each(errors.data, function (values, key) {
+                        var field = form.fields[key];
+                        if(field){
+                            _.each(values, function (value) {
+                                field.addError(value.message, value.code.toLowerCase());
+                            })
+                        }
+                    });
+                    u.redraw();
+                }
+            })
+        }
+
     }
 });
 

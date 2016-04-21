@@ -4,8 +4,22 @@ var forms = require("./src/forms"),
     utils = require("./src/utils"),
     validators = require("./src/validators"),
     http = require("./src/http"),
-    widgets = require("./src/widgets");
+    routes = require("./src/routes"),
+    router = require("./src/router"),
+    widgets = require("./src/widgets"),
+    $ = require("jquery");
 
+
+function runStruts() {
+    $(function () {
+        routes.mount();
+    });
+}
+
+
+if(window){
+    runStruts();
+}
 
 module.exports = {
     Form: forms.Form,
@@ -14,5 +28,14 @@ module.exports = {
     widget: widgets.widget,
     field: fields.field,
     utils: utils,
-    http: http
+    http: http,
+    currentPath: routes.currentPath,
+    resolve: routes.resolve,
+    reverse: routes.reverse,
+    page: router.page,
+    pages: router.pages,
+    router: router.router,
+    route: routes.route,
+    mount: routes.mount,
+    isRouted: routes.isRouted
 }

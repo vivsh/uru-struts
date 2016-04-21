@@ -1,5 +1,5 @@
 
-var _ = require("underscore"),
+var _ = require("lodash"),
     u = require("uru"),
     moment = require("moment"),
     validators = require("./validators"),
@@ -9,10 +9,42 @@ var _ = require("underscore"),
 var fieldRegistry = {};
 
 
+function makeValidator(validators, ctx){
+    "use strict";
+
+    return function validator(value, done) {
+        var errors = [], queue = Array.prototype.slice.call(validators), first = true, over = false;
+
+        function next(message, name) {
+            if(message){
+                errors.push({message: message, type: name||"invalid"});
+            }
+            if(queue.length){
+               var item = queue.shift();
+                if(!errors.length) {
+                    try{
+                        item.call(ctx, value, next);
+                    }catch (e){
+                        next(e.message, e.type);
+                    }
+                }else{
+                    next();
+                }
+            }else if(!over && done){
+                over = true;
+                 done.call(ctx, errors);
+            }
+        }
+
+        next();
+    }
+}
+
 
 function FormField(options) {
     "use strict";
     this.value = null;
+    this.cleaner = null;
     this.name = options.name;
     this.errors = options.errors || [];
     var choices = options.choices || this.choices;
@@ -47,11 +79,12 @@ function FormField(options) {
     if (options.hasOwnProperty("value")) {
         this.setValue(options.value);
     }
-
 }
 
 FormField.prototype = {
     constructor: FormField,
+    cleaning: false,
+    bound: false,
     needsMultiPart: false,
     emptyValue: null,
     _setOptions: function(options){
@@ -70,7 +103,7 @@ FormField.prototype = {
     },
     isEmpty: function(value){
         "use strict";
-        return value === null || value === '' || value === undefined;
+        return value === null || value === '' || value === undefined || (value && value.length === 0);
     },
     toJS: function (value) {
         "use strict";
@@ -84,14 +117,6 @@ FormField.prototype = {
         "use strict";
         return this.value;
     },
-    runValidator: function(value, callback){
-        "use strict";
-        try{
-            return callback.call(this, value);
-        }catch (e){
-            this.addError(e.message, e.name);
-        }
-    },
     getErrorMessage: function (name) {
         return this.messages[name];
     },
@@ -100,42 +125,78 @@ FormField.prototype = {
         message = this.getErrorMessage(name) || message;
         this.errors.push(message)
     },
-
     clean: function (value) {
         "use strict";
-        var errors = this.errors = [], self = this;
-        var validators = this.validators;
-        var i;
+        // if(this.cleaner){
+        //     return this.cleaner;
+        // }
+        // var cleaner = $.Deferred();
+        // this.cleaner = cleaner;
+        this.cleanStart(value)
+        // return cleaner;
+    },
+    cleanComplete: function(errors){
+        "use strict";
+        var self = this;
+        _.each(errors, function(e){
+            self.addError(e.message, e.type);
+        });
+        this.value = !this.errors.length ? this.prepare(this.value) : null;
+        this.cleaning = false;
+        // if(this.errors){
+        //     this.cleaner.resolve(this.value);
+        // }else{
+        //     this.cleaner.reject(this.errors);
+        // }
+        // this.cleaner = null;
+        if(!this.silent){
+            u.redraw();
+        }
+    },
+    prepare: function (value) {
+        return value;
+    },
+    isEnabled: function () {
+      return !this.cleaning;
+    },
+    cleanStart: function (value) {
+        "use strict";
+        var errors = this.errors = [];
+        this.cleaning = true;
+        var validators = Array.prototype.slice.call(this.validators);
         if(this.isEmpty(value)){
             if(this.required){
                 this.addError("This field is required", "required");
             }
-            value = this.emptyValue;
+            this.value = this.emptyValue;
         }else{
-            value = this.runValidator(value, function (value) {
-                return self.toJS(value);
-            });
+            try{
+                this.value = this.toJS(value);
+            }catch(e){
+                this.addError(e.message, "invalid");
+                this.value = null;
+            }
             if (!errors.length) {
-                for (i = 0; i < validators.length; i++) {
-                    this.runValidator(value, validators[i]);
-                }
+                makeValidator(validators, this)(this.value, this.cleanComplete);
+            }else{
+                this.cleanComplete([]);
             }
         }
-        return errors.length !== 0 ? null : value;
     },
-    validate: function(value){
+    validate: function(value, next){
         "use strict";
-
+        next();
     },
     getValue: function () {
         "use strict";
         return this.errors.length === 0 ? this.value : null;
     },
-    setValue: function (value) {
+    setValue: function (value, silent) {
         "use strict";
-        this.value = this.clean(value);
-        console.log(value, this.name, this.value, this.errors);
-        u.redraw();
+        this.silent = !!silent;
+        this.bound = true;
+        this.clean(value);
+        console.log("Value set: ",value, this.name, this.value, this.errors);
     },
     isValid: function () {
         "use strict";
@@ -175,7 +236,8 @@ function registerField(name, options) {
 function createField(options) {
     "use strict";
     var type = options.type;
-    return new registerField(type)(options);
+    var class_ = registerField(type);
+    return new class_(options);
 }
 
 
@@ -205,27 +267,25 @@ u.component("struts-field", {
         return [
             ctx.label,
             u("div", {class: ctx.widgetClass},
-                ctx.widget
-            ),
-            ctx.help,
-            ctx.errors
+                ctx.widget,
+                ctx.help,
+                ctx.errors
+            )
         ]
     },
     horizontalLayout: function () {
         "use strict";
-
+        return this.verticalLayout(ctx);
     },
-    inlineLayout: function () {
+    inlineLayout: function (ctx) {
         "use strict";
-
+        return this.verticalLayout(ctx);
     },
     render: function (ctx) {
-
         var field = ctx.field;
         var name = field.name;
         var label = field.label ? u("label.u-form-label", {"for": field.id}, field.label) : null;
         var help = field.help ? u(".u-form-help", field.help) : null;
-
         var errors = u("ul.u-form-errors",
             field.errors.map(function (message) {
                 return u("li", message);
@@ -233,6 +293,8 @@ u.component("struts-field", {
         );
 
         var layout = ctx.layout + "Layout";
+
+        var layoutClass = "u-form-layout-" + ctx.layout;
 
         var componentClass = widgets.widget(field.widget.type);
 
@@ -242,7 +304,6 @@ u.component("struts-field", {
             layout: ctx.layout,
             attrs: field.getWidgetAttributes()
         });
-
         var widget = u(componentClass, attrs);
 
         var layoutFunc = componentClass[layout] || this[layout]
@@ -257,8 +318,13 @@ u.component("struts-field", {
             label: label
         }
 
-        return u(".u-form-field.u-form-field-"+field.type, {classes: {"has-error": !ctx.field.isValid()}},
-            layoutFunc(layoutContext)
+        if(componentClass.prototype.hidden){
+            return widget
+        }
+
+        return u(".u-form-field.u-form-field-"+field.type + "."+layoutClass,
+            {classes: {"has-error": !ctx.field.isValid()}},
+            layoutFunc.call(this,layoutContext)
         );
     }
 });
@@ -270,6 +336,9 @@ registerField("multiple-choice", {
     },
     widget: "multiple-select",
     toJS: function (value) {
+        if(!_.isArray(value)){
+            value = [value];
+        }
         var coerce = this.options.coerce;
         return _.map(value, function(v){
             "use strict";
@@ -279,7 +348,7 @@ registerField("multiple-choice", {
     toJSON: function () {
         return this.value;
     },
-    validate: function(values){
+    validate: function(values, next){
         "use strict";
         var choices = this.choices;
         var invalids = [];
@@ -294,6 +363,7 @@ registerField("multiple-choice", {
         if(invalids.length){
             throw new Error(invalids.join(", ") + " are not valid choices");
         }
+        next();
     }
 });
 
@@ -309,7 +379,7 @@ registerField("choice", {
     toJSON: function () {
         return this.value;
     },
-    validate: function(value){
+    validate: function(value, next){
         "use strict";
         var choices = this.choices;
         var valid = _.any(choices, function(item){
@@ -318,6 +388,7 @@ registerField("choice", {
         if(!valid){
             throw new Error("" + value + " is an invalid choice");
         }
+        next();
     }
 });
 
@@ -342,7 +413,7 @@ registerField("date", {
         "use strict";
         return moment(this.value).format(this.options.format)
     },
-    validate: function(value){
+    validate: function(value, next){
         "use strict";
         var op = this.options;
         if(op.min != null && value <= op.min){
@@ -351,6 +422,7 @@ registerField("date", {
         if(op.max != null && value >= op.max){
             throw new Error("Value cannot be more than " + op.max);
         }
+        next();
     }
 });
 
@@ -359,7 +431,7 @@ registerField("datetime", {
     options: {
         min: null,
         max: null,
-        format: "DD MMMM, yyyy hh:mm"
+        format: "dd/MM/yyyy hh:mm"
     },
     widget: "datetime",
     toJS: function (value) {
@@ -375,7 +447,7 @@ registerField("datetime", {
         "use strict";
         return moment(this.value).format(this.options.format)
     },
-    validate: function(value){
+    validate: function(value, next){
         "use strict";
         var op = this.options;
         if(op.min != null && value <= op.min){
@@ -384,6 +456,7 @@ registerField("datetime", {
         if(op.max != null && value >= op.max){
             throw new Error("Value cannot be more than " + op.max);
         }
+        next()
     }
 });
 
@@ -416,7 +489,7 @@ registerField("number", {
     toJS: function (value) {
         return parseInt(value);
     },
-    validate: function(value){
+    validate: function(value, next){
         "use strict";
         var op = this.options;
         if(op.min != null && value <= op.min){
@@ -425,6 +498,7 @@ registerField("number", {
         if(op.max != null && value >= op.max){
             throw new Error("Value cannot be more than " + op.max);
         }
+        next();
     }
 });
 
@@ -438,7 +512,7 @@ registerField("integer", {
     toJS: function (value) {
         return parseInt(value);
     },
-    validate: function(value){
+    validate: function(value, next){
         "use strict";
         var op = this.options;
         if(op.min != null && value <= op.min){
@@ -447,15 +521,17 @@ registerField("integer", {
         if(op.max != null && value >= op.max){
             throw new Error("Value cannot be more than " + op.max);
         }
+        next();
     }
 });
 
 registerField("email", {
    widget: "email",
-    validate: function(value){
+    validate: function(value, next){
         if(!validators.isEmail(value)) {
             throw new Error("" + value + " is not a valid email");
         }
+        next()
     }
 });
 
@@ -463,19 +539,16 @@ registerField("email", {
 registerField("phone", {
     widget: "phone",
     help: "Please enter your 10 digit mobile number",
-    validate: function(value){
+    validate: function(value, next){
         if(!validators.isIndianMobilePhoneNumber(value)) {
             throw new Error("" + value + " is not a valid mobile phone number.");
         }
+        next();
     },
-    clean: function(value){
+    prepare: function(value){
         "use strict";
-        var result = this.$super.clean.call(this, value)
-        if(result){
-            value = value.replace(/\D+/, '');
-            result = value.substr(value.length-10);
-        }
-        return result;
+        value = value.replace(/\D+/, '');
+        return value.substr(value.length-10);
     }
 });
 
@@ -487,7 +560,7 @@ registerField("string", {
        pattern: null
    },
    widget: "string",
-    validate: function(value){
+    validate: function(value, next){
         "use strict";
         var op = this.options, len = value.length, pattern;
         if(op.minLength != null && len <= op.minLength){
@@ -502,6 +575,7 @@ registerField("string", {
                 throw new Error("Invalid value");
             }
         }
+        next();
     }
 });
 
@@ -513,7 +587,7 @@ registerField("text", {
        rows: 4
    },
    widget: "text",
-    validate: function(value){
+    validate: function(value, next){
         "use strict";
         var op = this.options, len = value.length, pattern;
         if(op.minLength != null && len <= op.minLength){
@@ -522,6 +596,7 @@ registerField("text", {
         if(op.maxLength != null && len >= op.maxLength){
             throw new Error("Value cannot be more than " + op.maxLength);
         }
+        next();
     }
 });
 

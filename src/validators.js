@@ -18,10 +18,11 @@ function isIndianMobilePhoneNumber(value){
 
 
 function validateEmail(message) {
-    return function (value) {
+    return function (value, next) {
         if(!isEmail(value)){
             throw new Error(message);
         }
+        next();
     }
 }
 
@@ -29,20 +30,22 @@ function validateEmail(message) {
 function validateRegex(pattern, message){
     "use strict";
     var pattern = pattern instanceof RegExp? pattern : new RegExp(pattern);
-    return function (value) {
+    return function (value, next) {
         if(!pattern.test(value)){
             throw new Error(message);
         }
+        next();
     };
 }
 
 function validateIndianPhone(message){
     "use strict";
     var pattern = RX_INDIAN_MOBILE_PHONE_NUMBER;
-    return function (value) {
+    return function (value, next) {
         if(!pattern.test(value)){
             throw new Error(message);
         }
+        next();
     }
 }
 

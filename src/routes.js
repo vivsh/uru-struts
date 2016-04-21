@@ -1,8 +1,13 @@
 
 
-var pattern = require("./pattern"), utils = require("./utils"), dom = require("./dom");
+var pattern = require("./pattern"), utils = require("uru").utils, dom = require("uru").dom;
 
-var routerSet = [], monitorRoutes = false, initialRoutePopped = false, firstRoute = true, links = [], previousRoute;
+var routerSet = [], monitorRoutes = false,
+    initialRoutePopped = false,
+    firstRoute = true,
+    previousRoute;
+
+var linkList = [];
 
 
 function normalizePathName(pathname){
@@ -96,52 +101,32 @@ function matchRoute(path){
     return false;
 }
 
-function link(){
+
+function findLink(name){
     "use strict";
-    var args = Array.prototype.slice.call(arguments), stack = args, item;
-    if(args.length === 0){
-        return links.slice(0);
-    }
-    if(args.length === 1 && utils.isString(args[0])){
-        return find(args[0]);
-    }
-    while(stack.length){
-        item = stack.pop();
-        if(utils.isArray(item)){
-            stack.push.apply(stack, item);
-        }else{
-            item = utils.assign({}, item);
-            if(!item.pattern || !item.name){
-                throw new Error("No pattern or name defined for the link");
-            }
-            item.match = pattern.parse(item.pattern, true);
-            item.reverse = item.match.reverse;
-            links.push(item);
+    var i;
+    for(i=0; i<linkList.length; i++){
+        if(linkList[i].name === name){
+            return linkList[i];
         }
     }
 }
 
-function find(name){
-    "use strict";
-    var i;
-    for(i=0; i<links.length; i++){
-        if(links[i].name === name){
-            return links[i];
-        }
-    }
-}
 
 function resolve(url){
     "use strict";
-    var i, match;
+    var i, match, result = {};
     if(url.charAt(0) === '/'){
         url = url.substr(1);
     }
-    for(i=0; i<links.length; i++){
-        match = links[i].match(url);
+    for(i=0; i<linkList.length; i++){
+        match = linkList[i].match(url);
         if(match){
-            links[i].params = match;
-            return links[i];
+            result.params = match;
+            result.component = linkList[i].component;
+            result.name = linkList[i].name;
+            linkList[i].params = match;
+            return result;
         }
     }
     return false;
@@ -150,7 +135,7 @@ function resolve(url){
 
 function reverse(name, args){
     "use strict";
-    var ln = find(name), path;
+    var ln = findLink(name), path;
     if(ln){
         path = ln.reverse(args);
         if(path){
@@ -160,14 +145,25 @@ function reverse(name, args){
     return false;
 }
 
+function setLinkPattern(link, expr) {
+    link.pattern = expr;
+    link.match = pattern.parse(link.pattern, true);
+    link.reverse = link.match.reverse;
+    return link;
+}
 
-function Router(linkMap){
+function Router(linkMap, root){
     "use strict";
     var routes = this.routes = [], i, name, ln, value;
+    root = root || "";
     for(name in linkMap){
         if(linkMap.hasOwnProperty(name)){
             value = linkMap[name];
-            ln = find(name);
+            ln = findLink(name);
+            if(!ln){
+                throw new Error("No link found with the name "+name);
+            }
+            setLinkPattern(ln, root + ln.pattern);
             if(!ln){
                 throw new Error("No related link found: " + name);
             }
@@ -179,6 +175,14 @@ function Router(linkMap){
 
 Router.prototype.start = function (silent) {
   "use strict";
+    var i, route;
+    for(i=0; i<this.routes.length; i++){
+        route = this.routes[i];
+        if(route.link.router){
+            throw new Error("A link cannot be associated with more than one router");
+        }
+        route.link.router = this;
+    }
     routerSet.push(this);
     if(routerSet.length && !monitorRoutes){
         bindRoute();
@@ -229,6 +233,11 @@ Router.prototype.match = function (path) {
 
 Router.prototype.stop = function () {
   "use strict";
+    var i, route;
+    for(i=0; i<this.routes.length; i++){
+        route = this.routes[i];
+        delete route.link.router;
+    }
     utils.remove(routerSet, this);
     if(!routerSet.length && monitorRoutes){
         unbindRoute();
@@ -242,8 +251,11 @@ function mount(){
     document.addEventListener('click', function(event){
         event = dom.normalizeEvent(event);
         var target = event.target;
+        while(target.parentNode && target.tagName !== 'A'){
+            target = target.parentNode;
+        }
         if(target.tagName === 'A' && target.href && !utils.isExternalUrl(target.href)){
-            navigateRoute(target.pathname);
+            navigateRoute(target.href);
             event.preventDefault();
         }
     }, false);
@@ -263,55 +275,36 @@ function isRouted(name){
 }
 
 
-u.component("struts-router", {
-    routes: [
 
-    ],
-    __createHandler: function(self, value){
-        "use strict";
-        return function(params){
-            self.set({component: value, params: params});
-        };
-    },
-    initialize: function () {
-        "use strict";
-        var routes = {}, self = this, i, defined = this.routes, value;
-        for(i=0; i<defined.length; i++){
-            value = defined[i];
-            routes[value] = this.__createHandler(this, value);
-        }
-        this.router = uru.router(routes);
-        this.router.start();
-    },
-    onUnmount: function () {
-        "use strict";
-      this.router.stop();
-    },
-    onSwitch: function(ctx){
-        "use strict";
-    },
-    render: function(ctx){
-        "use strict";
-        this.onSwitch(ctx);
-        if(ctx.component){
-            return uru(ctx.component, {params: ctx.params});
-        }else{
-            return this.notfound();
-        }
-    },
-    notfound: function(){
-        "use strict";
-        return uru("h1", "Oops ! Not found !!!!");
+function addLink(name, expr, component) {
+    var item = {name: name, pattern: expr, component: component};
+
+    item.match = pattern.parse(item.pattern, true);
+    
+    item.reverse = item.match.reverse;
+
+    linkList.push(item);
+}
+
+
+function currentPath() {
+    "use strict";
+    var path = window.location.pathname;
+    if(path.charAt(0) != "/"){
+        path = "/" + path ;
     }
-});
+    return path;
+}
+
 
 
 module.exports = {
     Router: Router,
-    link: link,
+    addLink: addLink,
     resolve: resolve,
     route: navigateRoute,
     reverse: reverse,
     mount: mount,
-    isRouted: isRouted
+    isRouted: isRouted,
+    currentPath: currentPath
 };
