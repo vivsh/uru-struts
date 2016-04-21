@@ -24,6 +24,11 @@
   "dependencies": {
     "jquery": "^2.2.3",
     "lodash": "^4.11.1",
-    "uru": "^0.1.10"
-  }
+    "moment": "^2.13.0",
+    "urijs": "^1.17.1",
+    "uru": "^0.1.10",
+    "foundation-sites": "6.2",
+    "foundation-datepicker": "*"
+  },
+  "devDependencies": {}
 }
