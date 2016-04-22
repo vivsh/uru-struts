@@ -53,7 +53,8 @@ var Router = u.Component.extend({
 
 function router(name, definition){
     "use strict";
-    return u.component(name, Router.extend(definition));
+    var result = u.component(name, Router.extend(definition));
+    return result;
 }
 
 
@@ -86,21 +87,9 @@ function page(name, obj){
 }
 
 
-function pages(predicate){
-    "use strict";
-    var result = [], i, page;
-    for(i=0; i< pageList.length; i++){
-        page = pageList[i];
-        if(!predicate || predicate(page.component)){
-            result.push(page.component);
-        }
-    }
-    return result;
-}
-
 
 module.exports = {
     router: router,
     page: page,
-    pages: pages
+    pages: routes.links
 }

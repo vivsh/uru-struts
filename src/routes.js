@@ -33,9 +33,9 @@ function handleRoute(event){
         }
         result.func(result.args);
     }else if(!firstRoute){
-        firstRoute = false;
         window.location.reload();
     }
+    firstRoute = false;
     previousRoute = href;
 }
 
@@ -297,6 +297,18 @@ function currentPath() {
 }
 
 
+function links(predicate){
+    "use strict";
+    var result = [], i, page;
+    for(i=0; i< linkList.length; i++){
+        page = linkList[i];
+        if(!predicate || predicate(page.component)){
+            result.push(page);
+        }
+    }
+    return result;
+}
+
 
 module.exports = {
     Router: Router,
@@ -305,6 +317,7 @@ module.exports = {
     route: navigateRoute,
     reverse: reverse,
     mount: mount,
+    links: links,
     isRouted: isRouted,
     currentPath: currentPath
 };

@@ -7,7 +7,8 @@ var forms = require("./src/forms"),
     routes = require("./src/routes"),
     router = require("./src/router"),
     widgets = require("./src/widgets"),
-    $ = require("jquery");
+    $ = require("jquery"),
+    u = require("uru");
 
 
 function runStruts() {
@@ -21,7 +22,9 @@ if(window){
     runStruts();
 }
 
+
 module.exports = {
+    u: u,
     Form: forms.Form,
     utils: utils,
     validators: validators,
