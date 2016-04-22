@@ -1,6 +1,6 @@
 {
   "name": "uru-struts",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "framework for uru virtualdom library",
   "main": "index.js",
   "scripts": {
