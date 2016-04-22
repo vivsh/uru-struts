@@ -242,11 +242,11 @@ function createField(options) {
 
 
 
-u.component("struts-field", {
+u.component("u-field", {
     getForm: function () {
         "use strict";
         var owner = this.$owner;
-        while (owner && owner.$name != "struts-form") {
+        while (owner && owner.$name != "u-form") {
             owner = owner.$owner;
         }
         return owner ? owner.context.form : null;
@@ -258,6 +258,9 @@ u.component("struts-field", {
     getContext: function (ctx) {
         "use strict";
         var field = this.getField();
+        if(ctx.hasOwnProperty("choices")){
+            field.choices = ctx.choices;
+        }
         return {
             field: field,
             layout: (ctx.layout || "vertical").toLowerCase()
@@ -353,7 +356,7 @@ registerField("multiple-choice", {
         var choices = this.choices;
         var invalids = [];
         _.each(values, function(value){
-             var valid = _.any(choices, function(item){
+             var valid = _.some(choices, function(item){
                  return item.value === value;
             });
             if(!valid){
@@ -382,7 +385,7 @@ registerField("choice", {
     validate: function(value, next){
         "use strict";
         var choices = this.choices;
-        var valid = _.any(choices, function(item){
+        var valid = _.some(choices, function(item){
             return item.value === value;
         });
         if(!valid){

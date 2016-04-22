@@ -39,7 +39,7 @@ var Form = u.utils.Class({
     },
     isValid: function () {
         "use strict";
-        return _.all(this.fields, function (field, name) {
+        return _.every(this.fields, function (field, name) {
             return field.isValid();
         });
     },
@@ -93,18 +93,18 @@ FieldSet.prototype = {
     },
     isValid: function () {
         "use strict";
-        return _.all(this.fields, function (field, name) {
+        return _.every(this.fields, function (field, name) {
             return field.isValid();
         });
     }
 };
 
 
-u.component("struts-form", {
+u.component("u-form", {
     initialize: function () {
         "use strict";
         _.bindAll(this, 'onChange', 'onSubmit');
-        this.onSubmit = _.debounce(this.onSubmit, 250, true);
+        this.onSubmit = _.debounce(this.onSubmit, 250, {leading: true});
     },
     onMount: function () {
         "use strict";
@@ -155,7 +155,7 @@ u.component("struts-form", {
         var parts = utils.parseUri(el.action || location.href);
         parts.query = $(el).serialize();
         var url = utils.buildUri(parts);
-
+        console.log("hello world");
         ctx.form.validate();
 
         if (!ctx.form.isValid() || url === this.lastUrl) {

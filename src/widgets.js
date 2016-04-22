@@ -11,7 +11,7 @@ var Widget = u.Component.extend({
         var func = this.valueChanged;
         this.valueChanged = _.debounce(function () {
             return func.apply(self, arguments);
-        }, 250, true);
+        }, 250, {leading: true});
     },
     readValue: function () {
         return u.dom.getValue(this.el);
@@ -231,7 +231,7 @@ registerWidget("multiple-select", {
         var choices = _.map(field.choices, function (item) {
             return u("option", {
                 value: item.value,
-                selected: _.contains(field.getValue(), item.value)
+                selected: _.includes(field.getValue(), item.value)
             }, item.label);
         });
         var attrs = getWidgetAttributes(this, {multiple: true});
@@ -259,7 +259,7 @@ registerWidget("multiple-checkbox", {
             return u("li",
                 u("input", {
                     id: id, value: item.value, type: "checkbox", name: field.name,
-                    checked: _.contains(field.getValue(), item.value)
+                    checked: _.includes(field.getValue(), item.value)
                 }),
                 u("label", {for: id}, item.label)
             );
@@ -289,7 +289,7 @@ registerWidget("multiple-radio", {
                 u("label",
                     u("input", {
                         id: id, value: item.value, type: "radio", name: field.name,
-                        checked: _.contains(field.getValue(), item.value)
+                        checked: _.includes(field.getValue(), item.value)
                     }),
                     item.label
                 )

@@ -22,13 +22,13 @@
   },
   "homepage": "https://github.com/vivsh/uru-struts#readme",
   "dependencies": {
+    "foundation-datepicker": "*",
+    "foundation-sites": "6.2",
     "jquery": "^2.2.3",
     "lodash": "^4.11.1",
     "moment": "^2.13.0",
     "urijs": "^1.17.1",
-    "uru": "^0.1.10",
-    "foundation-sites": "6.2",
-    "foundation-datepicker": "*"
+    "uru": "^0.1.10"
   },
   "devDependencies": {}
 }

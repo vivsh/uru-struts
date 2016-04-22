@@ -46,19 +46,19 @@ u.component("trial-form", {
     },
     render: function () {
         var form = this.form;
-        return u("struts-form", {form: form},
-            u("struts-field", {name: "age"}),
-            u("struts-field", {name: "dob"}),
-            u("struts-field", {name: "dod"}),
-            u("struts-field", {name: "doy"}),
-            u("struts-field", {name: "multiple_choices"}),
-            u("struts-field", {name: "multiple_radio"}),
-            u("struts-field", {name: "multiple_checkbox"}),
-            u("struts-field", {name: "email"}),
-            u("struts-field", {name: "phone"}),
-            u("struts-field", {name: "good"}),
-            u("struts-field", {name: "choices"}),
-            u("struts-field", {name: "description"}),
+        return u("u-form", {form: form},
+            u("u-field", {name: "age"}),
+            u("u-field", {name: "dob"}),
+            u("u-field", {name: "dod"}),
+            u("u-field", {name: "doy"}),
+            u("u-field", {name: "multiple_choices"}),
+            u("u-field", {name: "multiple_radio"}),
+            u("u-field", {name: "multiple_checkbox"}),
+            u("u-field", {name: "email"}),
+            u("u-field", {name: "phone"}),
+            u("u-field", {name: "good"}),
+            u("u-field", {name: "choices"}),
+            u("u-field", {name: "description"}),
             u("button.button.secondary", {type: "submit"}, "Submit")
         );
     }
