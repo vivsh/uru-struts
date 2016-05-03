@@ -20,9 +20,10 @@ function isIndianMobilePhoneNumber(value){
 function validateEmail(message) {
     return function (value, next) {
         if(!isEmail(value)){
-            throw new Error(message);
+            next(null, message);
+        }else{
+            next(value);
         }
-        next();
     }
 }
 
@@ -32,9 +33,10 @@ function validateRegex(pattern, message){
     var pattern = pattern instanceof RegExp? pattern : new RegExp(pattern);
     return function (value, next) {
         if(!pattern.test(value)){
-            throw new Error(message);
+            next(null, message);
+        }else{
+            next();
         }
-        next();
     };
 }
 
@@ -43,9 +45,10 @@ function validateIndianPhone(message){
     var pattern = RX_INDIAN_MOBILE_PHONE_NUMBER;
     return function (value, next) {
         if(!pattern.test(value)){
-            throw new Error(message);
+            next(null, message);
+        }else{
+            next();
         }
-        next();
     }
 }
 

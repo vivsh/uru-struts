@@ -40,12 +40,12 @@ function sendRequest(type, url, data){
         contentType:  "application/json",
         dataType: "json",
         data: data
-    }).always(function(){
-        u.redraw();
     }).done(function(data, textStatus, jqXHR){
         result.resolve(new HttpResponse(jqXHR, textStatus, data));
     }).fail(function(jqXHR, textStatus, error){
-        result.resolve(new HttpResponse(jqXHR, textStatus, error));
+        result.reject(new HttpResponse(jqXHR, textStatus, error));
+    }).always(function(){
+        u.redraw();
     });
     return result;
 }
@@ -92,6 +92,8 @@ function submitForm(formElement) {
         processData: false,
         contentType: false,
         data:formData
+    }).always(function () {
+        u.redraw();
     });
 }
 

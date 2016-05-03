@@ -1,6 +1,6 @@
 
 
-var pattern = require("./pattern"), utils = require("uru").utils, dom = require("uru").dom;
+var pattern = require("./pattern"), u = require("uru"), utils = u.utils, dom = u.dom;
 
 var routerSet = [], monitorRoutes = false,
     initialRoutePopped = false,
@@ -32,6 +32,7 @@ function handleRoute(event){
             event.stopImmediatePropagation();
         }
         result.func(result.args);
+        u.redraw();//redraw at the event source
     }else if(!firstRoute){
         window.location.reload();
     }
@@ -170,6 +171,7 @@ function Router(linkMap, root){
             routes.push({link: ln, func: value});
         }
     }
+    u.redraw();//redraw is needed because links are changed
 }
 
 
@@ -254,9 +256,15 @@ function mount(){
         while(target.parentNode && target.tagName !== 'A'){
             target = target.parentNode;
         }
+        if(target.target){
+            return;
+        }
         if(target.tagName === 'A' && target.href && !utils.isExternalUrl(target.href)){
-            navigateRoute(target.href);
+            var ev = u.trigger("route:before", {href: target.href});
             event.preventDefault();
+            if(!ev.stopped){
+                navigateRoute(target.href);
+            }
         }
     }, false);
 }

@@ -7,6 +7,7 @@ var forms = require("./src/forms"),
     routes = require("./src/routes"),
     router = require("./src/router"),
     widgets = require("./src/widgets"),
+    Application  = require("./src/application");
     $ = require("jquery"),
     u = require("uru");
 
@@ -25,6 +26,7 @@ if(window){
 
 module.exports = {
     u: u,
+    Page: router.Page,
     Form: forms.Form,
     utils: utils,
     validators: validators,
@@ -40,5 +42,7 @@ module.exports = {
     router: router.router,
     route: routes.route,
     mount: routes.mount,
-    isRouted: routes.isRouted
+    isRouted: routes.isRouted,
+    app: Application
 }
+

@@ -1,4 +1,4 @@
-var u = require("uru"), _ = require("lodash");
+var u = require("uru"), _ = require("lodash"), utils = require("./utils");
 
 var widgetRegistry = {};
 
@@ -12,13 +12,18 @@ var Widget = u.Component.extend({
         this.valueChanged = _.debounce(function () {
             return func.apply(self, arguments);
         }, 250, {leading: true});
+        this.lastValue = null;
     },
     readValue: function () {
         return u.dom.getValue(this.el);
     },
-    valueChanged: function () {
+    valueChanged: function (event) {
         var field = this.context.field;
         var value = this.readValue();
+        if(utils.isEqual(value, this.lastValue)){
+            return;
+        }
+        this.lastValue = value;
         field.setValue(value);
         u.redraw();
     }
@@ -50,10 +55,11 @@ function registerWidget(name, options) {
 
 function getWidgetAttributes(widget, extras) {
     "use strict";
-    var field = widget.context.field;
+    var ctx = widget.context;
+    var field = ctx.field;
     return _.extend({
         class: field.class,
-        placeholder: field.placeholder,
+        placeholder: ctx.placeholder,
         name: field.name,
         id: field.id,
         onaction: widget.valueChanged
@@ -115,6 +121,13 @@ registerWidget("checkbox", {
         );
     },
     statics: {
+        inlineLayout: function (ctx) {
+            return [
+                ctx.widget,
+                ctx.help,
+                ctx.errors
+            ]
+        },
         verticalLayout: function (ctx) {
             return [
                 ctx.widget,
