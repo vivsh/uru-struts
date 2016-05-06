@@ -262,7 +262,7 @@ function mount(){
         if(target.tagName === 'A' && target.href && !utils.isExternalUrl(target.href)){
             var ev = u.trigger("route:before", {href: target.href});
             event.preventDefault();
-            if(!ev.stopped){
+            if(!ev.isDefaultPrevented()){
                 navigateRoute(target.href);
             }
         }

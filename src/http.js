@@ -1,5 +1,5 @@
 
-var $ = require("jquery"), u = require("uru");
+var $ = require("jquery"), u = require("uru"), conf = require("./conf");
 
 
 function HttpError(){
@@ -22,9 +22,11 @@ function HttpResponse(jqXHR, textStatus, result){
     }
 }
 
+
+
 function sendRequest(type, url, data){
     "use strict";
-    var result = $.Deferred(), processData = false;
+    var result = $.Deferred(), processData = false, content;
     if(data){
         if(type === 'GET'){
             data = data;
@@ -32,6 +34,13 @@ function sendRequest(type, url, data){
         }else{
             data = JSON.stringify(data);
         }
+    }
+    if(conf.settings.httpHook){
+        content = conf.settings.httpHook(type, url);
+    }
+    if(content){
+        result.resolve(content);
+        return result;
     }
     $.ajax({
         type: type,
@@ -49,7 +58,6 @@ function sendRequest(type, url, data){
     });
     return result;
 }
-
 
 
 
@@ -87,6 +95,13 @@ function submitForm(formElement) {
     var url = formElement.action || "";
     var method = formElement.method || "GET";
     var formData = new FormData(formElement);
+    if(conf.settings.httpHook){
+        content = conf.settings.httpHook("submit", formElement);
+    }
+    if(content){
+        result.resolve(content);
+        return result;
+    }
     return $.ajax(url, {
         type: method,
         processData: false,

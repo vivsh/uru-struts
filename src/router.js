@@ -1,6 +1,6 @@
 
-var routes = require("./routes"), u = require("uru"), utils = u.utils;
-
+var routes = require("./routes"), u = require("uru"), utils = u.utils, _ = require("lodash");
+var conf = require("./conf");
 
 
 function createHandler(self, value){
@@ -10,24 +10,59 @@ function createHandler(self, value){
     };
 }
 
+
+function Entry(value, key){
+    this.value = value;
+    this.key = key;
+}
+
+Entry.prototype.join = function (other) {
+    return this.key + other
+}
+
+
 var Router = u.Component.extend({
     root: "",
-    routes: [
-
-    ],
+    routes: {},
     initialize: function () {
         "use strict";
-        this.once = 0;
-        var pages = {}, self = this, i, defined = this.routes, value;
-        for(i=0; i<defined.length; i++){
-            value = defined[i];
+        var settings = conf.settings;
+        var root = settings.root, links = [],
+            stack = [new Entry(this.routes, root)],
+            item, key, value, i, pattern, component, entry;
+        while(stack.length){
+            entry = stack.shift();
+            item = entry.value;
+            root = entry.key;
+            if(_.isPlainObject(item)){
+                for(key in item){
+                    if(item.hasOwnProperty(key)){
+                        value = item[key];
+                        stack.push(new Entry(value, entry.join(key)));
+                    }
+                }
+            }else if(_.isString(item)){
+                component = u.component(item);
+                pattern = root;
+                routes.addLink(item, pattern, component);
+                links.push(item);
+            }else{
+                throw new Error("Invalid routes");
+            }
+        }
+        
+        var pages = {}, self = this, i, value;
+        for(i=0; i<links.length; i++){
+            value = links[i];
             pages[value] = createHandler(this, value);
         }
+        
         this.on("error", function(event){
             self.onError.apply(self, [event]);
         });
-        this.router = new routes.Router(pages, this.root);
-        this.router.start();
+        
+        this.router = new routes.Router(pages, "");
+        this.router.start();   
     },
     getEnv: function(){
 
@@ -51,10 +86,12 @@ var Router = u.Component.extend({
         if(ctx.error){
             return this.renderError(ctx);
         }
+        ctx.url = location.href;
         this.onSwitch(ctx);
         if(ctx.component){
             var attrs = this.getEnv() || {};
             attrs.params = ctx.params;
+            attrs.url = location.href;
             return this.transform(ctx, u(ctx.component, attrs));
         }else{
             return this.transform(ctx, this.renderNotFound(ctx));
@@ -130,7 +167,7 @@ var Page = u.Component.extend({
 
         if(this.$loading === 0){
             this.set({$status: "loading"});
-            u.redraw();
+            // u.redraw();
         }
 
         this.$loading ++;
@@ -159,10 +196,10 @@ var Page = u.Component.extend({
 function page(name, obj){
     "use strict";
     var base;
-
-    if(obj.pattern === null || obj.pattern === undefined){
-        throw new Error("No url pattern defined for " + name);
-    }
+    //
+    // if(obj.pattern === null || obj.pattern === undefined){
+    //     throw new Error("No url pattern defined for " + name);
+    // }
 
     if(arguments.length <= 2){
         base = Page;
@@ -173,7 +210,7 @@ function page(name, obj){
 
     var factory = u.component(name, base.extend(obj));
 
-    routes.addLink(name, obj.pattern, factory);
+    // routes.addLink(name, obj.pattern, factory);
 
     return factory;
 }

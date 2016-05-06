@@ -7,21 +7,10 @@ var forms = require("./src/forms"),
     routes = require("./src/routes"),
     router = require("./src/router"),
     widgets = require("./src/widgets"),
-    Application  = require("./src/application");
     $ = require("jquery"),
-    u = require("uru");
-
-
-function runStruts() {
-    $(function () {
-        routes.mount();
-    });
-}
-
-
-if(window){
-    runStruts();
-}
+    u = require("uru"),
+    fui = require("./src/fui"),
+    conf = require("./src/conf");
 
 
 module.exports = {
@@ -32,7 +21,6 @@ module.exports = {
     validators: validators,
     widget: widgets.widget,
     field: fields.field,
-    utils: utils,
     http: http,
     currentPath: routes.currentPath,
     resolve: routes.resolve,
@@ -43,6 +31,10 @@ module.exports = {
     route: routes.route,
     mount: routes.mount,
     isRouted: routes.isRouted,
-    app: Application
+    fui: fui,
+    setup: conf.setup,
+    settings: conf.settings,
+    services: conf.services
 }
 
+global.struts = module.exports;

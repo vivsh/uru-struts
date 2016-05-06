@@ -1,5 +1,5 @@
 
-var URI = require("urijs");
+var URI = require("urijs"), u = require("uru");
 
 
 function parseUri(url){
@@ -69,64 +69,9 @@ function beanify(factory, propertyNames){
 }
 
 
-function isEqual(first, second){
-    var stack = [{a: first, b: second}], typeA, typeB, a , b, item, i, k, v, history, l;
-    if(first === second){
-        return true;
-    }
-    while(stack.length){
-        item = stack.shift();
-        a = item.a;
-        b = item.b;
-        typeA = typeof item.a;
-        typeB = typeof item.b;
-        if(a===b){
-
-        }else if(typeA != typeB){
-            return false;
-        }else if(typeA != 'object'){
-            return false;
-        }else if(a == null || b == null){
-            return false;
-        }else if(a.constructor !== b.constructor){
-            return false;
-        }else if(Object.prototype.toString.call(a) === '[object Array]'){
-            l = Math.max(a.length, b.length);
-            for(i=0; i< l; i++){
-                stack.push({
-                    a: a[i],
-                    b: b[i]
-                });
-            }
-        }else{
-            history = {};
-            for(k in a){
-                if(a.hasOwnProperty(k)){
-                    stack.push({
-                        a: a[k],
-                        b: b[k]
-                    })
-                    history[k] = 1;
-                }
-            }
-            for(k in b){
-                if(b.hasOwnProperty(k) && !(k in history)){
-                    stack.push({
-                        a: a[k],
-                        b: b[k]
-                    });
-                }
-            }
-        }
-    }
-    return true;
-}
-
-
-
 module.exports = {
     buildUri: buildUri,
     parseUri: parseUri,
     beanify: beanify,
-    isEqual: isEqual
+    isEqual: u.utils.isEqual
 }

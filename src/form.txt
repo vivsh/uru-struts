@@ -1,8 +1,0 @@
-
-
-1. All data should be help by the form.
-2. Multiple submission should not be allowed.
-3. In GET as well as POST,
-
-A form becomes bound when its submitted. A bound form has all fields validated.
-A field becomes bound when its value has been changed. Change detection should be on focusout and change event

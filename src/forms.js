@@ -3,7 +3,8 @@ var u = require("uru"),
     utils = require("./utils"),
     fields = require("./fields"),
     http = require("./http"),
-    routes = require("./routes");
+    routes = require("./routes"),
+    fui = require("./fui");
 
 
  function validateFieldSet(fieldSet, data, validators, errors, next) {
@@ -28,7 +29,7 @@ var u = require("uru"),
 
 function Form(data){
     "use strict";
-    var fieldset = {}, self = this;
+    var fieldset = {}, self = this, field;
 
     this._nonFieldErrors = [];
     this._validators = this._validators ? this._validators.slice(0) : [];
@@ -47,7 +48,10 @@ function Form(data){
     if (this._data) {
         _.each(this._data, function (v, k) {
             if (k in fieldset) {
-                fieldset[k].setValue(v);
+                var field = fieldset[k];
+                if(!field.isEmpty(v)){
+                    field.setValue(v);
+                }
             }
         });
     }
@@ -271,9 +275,7 @@ u.component("u-form", {
     render: function (ctx, content) {
         "use strict";
         ctx.form.component = this;
-        var messages = ctx.form.getNonFieldErrors();
-        var failureMessage = ctx.form.getFailureMessage();
-        var needsCallout = messages.length || failureMessage;
+        var form = ctx.form;
         return u("-form",
             {
                 id: ctx.id,
@@ -281,16 +283,7 @@ u.component("u-form", {
                 action: ctx.action,
                 class: ['u-form', ctx.class],
             },
-            u("div.u-non-field-errors", {if: needsCallout, class: {"has-error": !ctx.form.isValid()}},
-                u("div.u-form-errors",
-                    u("div.callout.alert",
-                        u("div.error-heading", {if: failureMessage}, failureMessage),
-                        u("ul", messages.map(function (msg) {
-                            return u("li", msg);
-                        }))
-                    )
-                )
-            ),
+            fui.formMessage(form, ctx),
             content
         );
     },
@@ -318,27 +311,16 @@ u.component("u-form", {
        }
         this.trigger("failure", this.context.form);
     },
-    onSubmit: function (event) {
+    completeSubmit: function (form, el) {
         "use strict";
-        var self = this, el = u.dom.closest(event.target, "FORM"), ctx = this.context,
-            owner = this.$owner;
-        var form = this.context.form;
+
+        var self = this;
         var method = (el.method || "get").toUpperCase();
         var parts = utils.parseUri(el.action || location.href);
         parts.query = $(el).serialize();
         var url = utils.buildUri(parts);
 
-        event.preventDefault();
-
-        if(!form.isReady()){
-            return;
-        }
-
-        ctx.form.validate();
-
-        // u.nextTick(u.redraw); //Not needed to update validation failures as submit must be an event
-
-        if (!ctx.form.isValid()) {
+        if (!form.isValid()) {
             return;
         }
 
@@ -356,22 +338,29 @@ u.component("u-form", {
                 self.onFailure(form, form.getErrors());
             })
         }
+    },
+    onSubmit: function (event) {
+        "use strict";
+        var self = this, el = u.dom.closest(event.target, "FORM"), ctx = this.context;
+        var form = this.context.form;
 
+        event.preventDefault();
+
+        if(!form.isReady()){
+            return;
+        }
+
+        u.redraw();//submit event should cause a redraw
+
+        form.validate(function () {
+            self.completeSubmit(form, el);
+        });
     }
 });
 
 
 
-u.component("u-form-row", function (ctx) {
-    var names = ctx.names;
-   var span = 12 * 1/names.length;
-   return u(".row.medium-up-"+names.length,
-        names.map(function (name) {
-           return u(".column", u("u-field", {name: name, layout: ctx.layout||"vertical"}));
-       })
-    )
-});
 
 module.exports = {
-    Form: Form,
+    Form: Form
 }

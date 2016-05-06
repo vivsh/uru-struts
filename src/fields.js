@@ -54,7 +54,8 @@ function FormField(options) {
 FormField.prototype = {
     constructor: FormField,
     options: {
-        emptyValue: null
+        emptyValue: null,
+        required: true
     },
     isMultipart: function(){
         return false;
@@ -178,7 +179,6 @@ FormField.prototype = {
             msg = {message: msg};
         }
         this._errors.push(msg);
-        console.log(this.name, this.type, msg, new Error().stack)
     },
     _runValidators: function (value, next) {
       var errors = [], self = this;
