@@ -31,7 +31,7 @@ function FormField(options) {
     "use strict";
     var ops = this.options = _.extend({}, this.options, options);
     this.name = ops.name;
-    this.id = "id_" + this.name;
+    this.id = "id_" + this.name + "" + _.uniqueId();
     var widget = ops.widget || "string";
     this.widget = _.isString(widget) ? {type: widget} : widget;
     this._disabled = !!options.disabled;
@@ -47,7 +47,7 @@ function FormField(options) {
     }
 
     if (options.hasOwnProperty("value")) {
-        this.setValue(options.value);
+        this.options.initialValue = options.value;
     }
 }
 
@@ -55,13 +55,20 @@ FormField.prototype = {
     constructor: FormField,
     options: {
         emptyValue: null,
-        required: true
+        required: true,
+        initialValue: "",
     },
     isMultipart: function(){
         return false;
     },
     getEmptyValue: function () {
        return this.options.emptyValue;
+    },
+    getInitialValue: function () {
+       return this.options.initialValue;
+    },
+    setInitialValue: function (value) {
+        this.options.initialValue = value;
     },
     isRequired: function(){
         return this.options.required;
@@ -117,6 +124,9 @@ FormField.prototype = {
     },
     getValue: function () {
         "use strict";
+        if(!this.isBound()){
+            return this.getInitialValue();
+        }
         return this._errors.length === 0 ? this._value : null;
     },
     setValue: function (value, next) {
@@ -168,7 +178,6 @@ FormField.prototype = {
         }
 
         validators.splice.apply(validators, [0, 0].concat(this._validators));
-
         return validators;
     },
     _updateValue: function (value) {
@@ -187,7 +196,6 @@ FormField.prototype = {
         }
         this._status = 'validating';
         this._errors = [];
-
         if(self.isEmpty(value)){
             if(this.isRequired()){
                 errors.push({"code": "required", message: "This field is required"})
@@ -309,6 +317,7 @@ u.component("u-field", {
     },
     render: function (ctx) {
         var self = this;
+        var attrs = _.omit(ctx, ["name"]);
         var field = ctx.field;
         var name = field.name;
         var label = field.label ? u("label.u-form-label", {"for": field.id}, field.label) : null;
@@ -350,7 +359,7 @@ u.component("u-field", {
         }
 
         return u(".u-form-field.u-form-field-"+field.type + "."+layoutClass,
-            {classes: {"has-error": !ctx.field.isValid()}},
+            {class: [{"has-error": !ctx.field.isValid()}, ctx.class]},
             layoutFunc.call(this,layoutContext)
         );
     }
@@ -494,10 +503,45 @@ registerField("datetime", {
 });
 
 
+registerField("file", {
+    options:{
+        widget: "file",
+    },
+    toJS: function (value) {
+        return value;
+    },
+    toJSON: function () {
+        return this.getValue();
+    },
+    toString: function(){
+        "use strict";
+        return this.getValue();
+    }
+});
+
+
+registerField("multiple-file", {
+    options:{
+        widget: "multiple-file",
+    },
+    toJS: function (value) {
+        return value;
+    },
+    toJSON: function () {
+        return this.getValue();
+    },
+    toString: function(){
+        "use strict";
+        return this.getValue();
+    }
+});
+
+
 registerField("boolean", {
     options:{
         widget: "checkbox",
-        emptyValue: false
+        emptyValue: false,
+        initialValue: false,
     },
     toJS: function (value) {
         if(_.isString(value)){
@@ -522,7 +566,7 @@ registerField("number", {
         widget: "integer"
     },
     toJS: function (value) {
-        return parseInt(value);
+        return parseFloat(value);
     },
     validate: function(value, next){
         "use strict";

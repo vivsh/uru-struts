@@ -7,21 +7,25 @@ var u = require("uru"),
     fui = require("./fui");
 
 
- function validateFieldSet(fieldSet, data, validators, errors, next) {
+ function validateFieldSet(form, fieldSet, data, validators, errors, next) {
      if(!fieldSet.length){
-         fields.validateField(data, validators, errors, next);
+         if(form.isValid()){
+               fields.validateField(data, validators, errors, next);
+         }else{
+             next(data, errors);
+         }
      }else{
          var field = fieldSet.shift();
          var callback = function(){
              if(field.isValid()){
                 data[field.name] = field.getValue();
              }
-            validateFieldSet(fieldSet, data, validators, errors, next);
+            validateFieldSet(form, fieldSet, data, validators, errors, next);
          };
          if(field.isBound()){
              field.callWhenReady(callback);
          }else{
-             field.setValue(null, callback);
+             field.setValue(field.getValue(), callback);
          }
      }
  }
@@ -32,7 +36,7 @@ function Form(data){
     var fieldset = {}, self = this, field;
 
     this._nonFieldErrors = [];
-    this._validators = this._validators ? this._validators.slice(0) : [];
+    this._validators = this.options.validators ? this.options.validators.slice(0) : [];
     this._status = 'ready';
     this._data = _.extend({}, this.getQueryDict(), data);
     this._onReadyCallbacks = [];
@@ -46,31 +50,26 @@ function Form(data){
 
     this.fields = fieldset;
     if (this._data) {
-        _.each(this._data, function (v, k) {
-            if (k in fieldset) {
-                var field = fieldset[k];
-                if(!field.isEmpty(v)){
-                    field.setValue(v);
-                }
-            }
-        });
+        this.setData(this._data);
     }
-
-    if(this.initialize){
-        this.initialize.apply(this, arguments);
-    }
+    this.initialize.apply(this, arguments);
 }
 
 
 Form.extend = function(){
     var class_ = u.utils.extend.apply(this, arguments);
     class_.prototype.messages = _.defaultsDeep(class_.prototype.messages, this.prototype.messages);
+    class_.options = _.defaultsDeep(class_.prototype.options, this.prototype.options);
     return class_;
 }
 
 
 Form.prototype = {
     constructor: Form,
+    initialize: _.noop,
+    options:{
+        method: "get"
+    },
     messages: {
         failure: "There were some errors in the form"
     },
@@ -83,6 +82,17 @@ Form.prototype = {
         }else{
             this._onReadyCallbacks.push(callback);
         }
+    },
+    setData: function (data) {
+        var fieldset = this.fields;
+        _.each(data, function (v, k) {
+            if (k in fieldset) {
+                var field = fieldset[k];
+                if(!field.isEmpty(v)){
+                    field.setValue(v);
+                }
+            }
+        });
     },
     getData: function () {
         return this._data;
@@ -133,6 +143,13 @@ Form.prototype = {
         });
         return errors;
     },
+    addError: function(message, fieldName){
+        if(arguments.length === 1){
+            this._nonFieldErrors.push(msg);
+        }else{
+            this.getField(fieldName).addError(message);
+        }
+    },
     getField: function (name) {
         return this.fields[name];
     },
@@ -162,6 +179,9 @@ Form.prototype = {
             return field.isValid();
         });
     },
+    addValidator: function (validator) {
+        this._validators.push(validator);
+    },
     validate: function (next) {
         this._runValidators(next);
     },
@@ -184,8 +204,11 @@ Form.prototype = {
         }
         return null;
     },
+    getEl: function () {
+        return this.component ? this.component.el : null;
+    },
     _getValidators: function () {
-      return this._validators.slice(0);
+      return this._validators.concat([_.bind(this.clean, this)]);
     },
     setDisabled: function (value) {
         _.each(this.getFields(), function(f){
@@ -207,6 +230,9 @@ Form.prototype = {
         }
         return this.getMessage(["codes", code], message);
     },
+    clean: function (data, next) {
+        next(data);
+    },
     _runValidators: function(next){
         if(!this.isReady()){
             throw new Error("Cannot validate till the previous validation is complete");
@@ -214,9 +240,18 @@ Form.prototype = {
         var cleanedData = {}, errors = [], validators = this._getValidators(), self = this;
         this._status = "validating";
         self.setDisabled(true);
-        validateFieldSet(this.getFields().slice(0), cleanedData, validators, errors, function (data, errors) {
+        this._nonFieldErrors = [];
+        validateFieldSet(this, this.getFields().slice(0), cleanedData, validators, errors, function (data, errors) {
             self._status = "ready"
-            self._nonFieldErrors = errors;
+            _.each(errors, function(value){
+                if(_.isPlainObject(value)){
+                    _.each(value, function (v, k) {
+                        self.addError(v, k);
+                    })
+                }else{
+                    self.addError(value)
+                }
+            });
             self.setDisabled(false);
             _.each(self._onReadyCallbacks, function (func) {
                 func();
@@ -255,11 +290,18 @@ FieldSet.prototype = {
 
 
 u.component("u-form", {
-    initialize: function () {
+    initialize: function (ctx) {
         "use strict";
         _.bindAll(this, 'onChange', 'onSubmit');
         this.onChange = _.debounce(this.onChange, 500, {leading: true});
-        // this.onSubmit = _.debounce(this.onSubmit, 500, {leading: true});
+        if(ctx.form){
+            if(!ctx.method){
+                ctx.method = ctx.form.options.method;
+            }
+            if(!ctx.action){
+                ctx.action = ctx.form.options.action;
+            }
+        }
     },
     onMount: function () {
         "use strict";
@@ -326,7 +368,9 @@ u.component("u-form", {
 
         this.lastUrl = url;
 
-        if (method === 'GET') {
+        if(this.context.nosubmit){
+            this.onSuccess(form);
+        }else if (method === 'GET') {
             routes.route(url);
             this.onSuccess(form);
         } else {
@@ -343,13 +387,10 @@ u.component("u-form", {
         "use strict";
         var self = this, el = u.dom.closest(event.target, "FORM"), ctx = this.context;
         var form = this.context.form;
-
         event.preventDefault();
-
         if(!form.isReady()){
             return;
         }
-
         u.redraw();//submit event should cause a redraw
 
         form.validate(function () {

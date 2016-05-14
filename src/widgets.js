@@ -4,28 +4,34 @@ var widgetRegistry = {};
 
 
 var Widget = u.Component.extend({
-    constructor: function () {
+    constructor: function (ctx) {
         "use strict";
         var self = this;
         u.Component.apply(this, arguments);
         var func = this.valueChanged;
         this.valueChanged = _.debounce(function () {
             return func.apply(self, arguments);
-        }, 250, {leading: true});
-        this.lastValue = null;
+        }, 500, {leading: true});
+        this.lastValue = ctx.field.getValue();
     },
-    readValue: function () {
-        return u.dom.getValue(this.el);
+    readValue: function (event) {
+        var el = (event && event.target) ? event.target: this.el;
+        return u.dom.getValue(el);
+    },
+    onValueChange: function(value){
+
     },
     valueChanged: function (event) {
         var field = this.context.field;
-        var value = this.readValue();
+        var value = this.readValue(event);
         if(utils.isEqual(value, this.lastValue)){
             return;
         }
         this.lastValue = value;
         field.setValue(value);
+        this.onValueChange(value);
         u.redraw();
+        return;
     }
 });
 
@@ -107,6 +113,10 @@ function input(type) {
 
 
 registerWidget("checkbox", {
+    readValue: function (event) {
+        var el = (event && event.target) ? event.target: this.el;
+        return u.dom.getValue(el) || 'false';
+    },
     render: function (ctx) {
         var field = ctx.field;
         var attrs = getWidgetAttributes(this, {
@@ -135,6 +145,15 @@ registerWidget("checkbox", {
                 ctx.errors
             ]
         }
+    }
+});
+
+
+registerWidget("multiple-file", {
+    render: function (ctx) {
+        var field = ctx.field;
+        var attrs = getWidgetAttributes(this, {value: field.getValue(), type: "file", multiple: true, onfocusout: null});
+        return u("input", attrs);
     }
 });
 
@@ -219,7 +238,7 @@ registerWidget("foundation-datetimepicker", {
     onMount: function () {
         "use strict";
         $(this.el).fdatepicker({
-            format: 'dd/mm/yyyy hh:mm',
+            format: 'dd/mm/yyyy hh:ii',
             pickTime: true,
             disableDblClickSelection: true
         }).on("changeDate", this.valueChanged);
@@ -234,6 +253,29 @@ registerWidget("foundation-datetimepicker", {
         var attrs = getWidgetAttributes(this, {value: field.getValue(), type: "text"});
         return u("input", attrs);
     }
+});
+
+
+registerWidget("splitdatetime", {
+   select: function (choices) {
+        return u("select", _.map(choices, function(label, value){
+            return u("option", {value: value}, label)
+        }));
+   },
+   render: function (ctx) {
+       var field = ctx.field;
+       var months = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+            "October", "November", "December"
+       ];
+       return u("div",
+            this.select(_.range(1, 31)),
+            this.select(months),
+            this.select(_.range(2018, 1900, -1)),
+           this.select(_.range(1, 12)),
+           this.select(_.range(1, 60)),
+           this.select(["AM", "PM"])
+       );
+   }
 });
 
 
@@ -295,14 +337,14 @@ registerWidget("multiple-radio", {
     },
     render: function (ctx) {
         "use strict";
-        var field = ctx.field;
+        var field = ctx.field, value = field.getValue();
         var choices = _.map(field.choices, function (item, i) {
             var id = field.id + "-" + i;
             return u("li",
                 u("label",
                     u("input", {
                         id: id, value: item.value, type: "radio", name: field.name,
-                        checked: _.includes(field.getValue(), item.value)
+                        checked: value === item.value
                     }),
                     item.label
                 )

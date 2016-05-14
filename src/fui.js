@@ -5,7 +5,7 @@ var u = require("uru"),
 u.component("u-form-row", function (ctx) {
     var names = ctx.names;
     var span = 12 * 1 / names.length;
-    return u(".row.slim.medium-up-" + names.length,
+    return u(".row.medium-up-" + names.length,
         _.map(names, function (name) {
             return u(".column", u("u-field", {name: name, layout: ctx.layout || "vertical"}));
         })
@@ -52,14 +52,14 @@ function strutsFormMessage(form, ctx) {
 
 function strutsFormHiddenFields(form, ctx) {
     return _.map(form.getHiddenFields(), function (f) {
-        return u("u-form", {name: f.name});
+        return u("u-field", {name: f.name});
     });
 }
 
 
 function strutsFormRow(form, ctx, names) {
     names = arguments.length == 3 && _.isArray(names) ? names : _.slice(arguments, 2);
-    return u(".row.slim.medium-up-" + names.length,
+    return u(".row.medium-up-" + names.length,
         names.map(function (name) {
             var field = form.getField(name);
             var content = field ? u("u-field", {name: field.name, layout: ctx.layout || "vertical"}) : name;
@@ -126,6 +126,7 @@ function strutsFormLayout(form, ctx) {
     _.each(layout, function (item) {
         rows.push(strutsFormRow(form, ctx, item));
     });
+    return rows;
 }
 
 

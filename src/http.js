@@ -1,5 +1,5 @@
 
-var $ = require("jquery"), u = require("uru"), conf = require("./conf");
+var $ = require("jquery"), u = require("uru");
 
 
 function HttpError(){
@@ -22,11 +22,24 @@ function HttpResponse(jqXHR, textStatus, result){
     }
 }
 
+HttpResponse.handle = function (deferred) {
+    var result = $.Deferred();
+    deferred.done(function(data, textStatus, jqXHR){
+        result.resolve(new HttpResponse(jqXHR, textStatus, data));
+    }).fail(function(jqXHR, textStatus, error){
+        result.reject(new HttpResponse(jqXHR, textStatus, error));
+    }).always(function(){
+        u.redraw();
+    });
+    return result;
+}
+
 
 
 function sendRequest(type, url, data){
     "use strict";
-    var result = $.Deferred(), processData = false, content;
+    var processData = false;
+
     if(data){
         if(type === 'GET'){
             data = data;
@@ -35,28 +48,15 @@ function sendRequest(type, url, data){
             data = JSON.stringify(data);
         }
     }
-    if(conf.settings.httpHook){
-        content = conf.settings.httpHook(type, url);
-    }
-    if(content){
-        result.resolve(content);
-        return result;
-    }
-    $.ajax({
+
+    return HttpResponse.handle($.ajax({
         type: type,
         url: url,
         processData: processData,
         contentType:  "application/json",
         dataType: "json",
         data: data
-    }).done(function(data, textStatus, jqXHR){
-        result.resolve(new HttpResponse(jqXHR, textStatus, data));
-    }).fail(function(jqXHR, textStatus, error){
-        result.reject(new HttpResponse(jqXHR, textStatus, error));
-    }).always(function(){
-        u.redraw();
-    });
-    return result;
+    }));
 }
 
 
@@ -91,25 +91,16 @@ function patch(url, data){
 }
 
 
-function submitForm(formElement) {
-    var url = formElement.action || "";
-    var method = formElement.method || "GET";
+function submitForm(formElement, url, method) {
+    url = url || formElement.action || "";
+    method = method || formElement.method || "GET";
     var formData = new FormData(formElement);
-    if(conf.settings.httpHook){
-        content = conf.settings.httpHook("submit", formElement);
-    }
-    if(content){
-        result.resolve(content);
-        return result;
-    }
-    return $.ajax(url, {
+    return HttpResponse.handle($.ajax(url, {
         type: method,
         processData: false,
         contentType: false,
         data:formData
-    }).always(function () {
-        u.redraw();
-    });
+    }));
 }
 
 

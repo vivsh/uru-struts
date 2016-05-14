@@ -69,7 +69,7 @@ var Router = u.Component.extend({
     },
     onError: function(event){
         this.set({error: event.data});
-        u.nextTick(u.redraw);
+        u.redraw(true);
     },
     onUnmount: function () {
         "use strict";
@@ -81,21 +81,51 @@ var Router = u.Component.extend({
     transform: function (ctx, content) {
         return content;
     },
+    processRequest: function(request){
+        var wares = this.getMiddlewares().slice(0), response, ware;
+        for(var i=0; i< wares.length; i++){
+            ware = wares[i];
+            if(ware.processRequest){
+                response = ware.processRequest(request);
+            }
+            if(response){
+                return response;
+            }
+        }
+    },
+    processResponse: function(ctx, response){
+        var wares = this.getMiddlewares().slice(0), ware;
+        for(var i=wares.length-1; i >= 0; i--){
+            ware = wares[i];
+            if(ware.processResponse){
+                response = ware.processResponse(ctx, response);
+            }
+        }
+        return this.transform(ctx, response);
+    },
+    getMiddlewares: function () {
+        return this.middlewares || [];
+    },
     render: function(ctx){
         "use strict";
+        var attrs = this.getEnv() || {}, response;
+        attrs.params = ctx.params;
+        ctx.url = attrs.url = location.href;
+        var request = attrs;
         if(ctx.error){
-            return this.renderError(ctx);
-        }
-        ctx.url = location.href;
-        this.onSwitch(ctx);
-        if(ctx.component){
-            var attrs = this.getEnv() || {};
-            attrs.params = ctx.params;
-            attrs.url = location.href;
-            return this.transform(ctx, u(ctx.component, attrs));
+            response = this.renderError(ctx);
         }else{
-            return this.transform(ctx, this.renderNotFound(ctx));
+            response = this.processRequest(request);
+            if(!response) {
+                this.onSwitch(ctx);
+                if (ctx.component) {
+                    response = u(ctx.component, attrs);
+                } else {
+                    response = this.renderNotFound(ctx);
+                }
+            }
         }
+        return this.processResponse(attrs, response);
     },
     renderRedirect: function (ctx) {
         return u("small", "Redirecting ...");

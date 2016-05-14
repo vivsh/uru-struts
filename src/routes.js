@@ -30,9 +30,11 @@ function handleRoute(event){
         if(event) {
             event.preventDefault();
             event.stopImmediatePropagation();
+        }else{
+            //pushState triggers no event. Hence, this call is needed
+            u.redraw(true);
         }
         result.func(result.args);
-        u.redraw();//redraw at the event source
     }else if(!firstRoute){
         window.location.reload();
     }
@@ -68,7 +70,10 @@ function bindRoute(){
         previousRoute = window.location.href;
     }
     initialRoutePopped = true;
-    window.addEventListener("popstate", handleRoute);
+    window.addEventListener("popstate", function (event) {
+        handleRoute(event);
+        u.redraw();
+    });
 }
 
 
@@ -264,6 +269,7 @@ function mount(){
             event.preventDefault();
             if(!ev.isDefaultPrevented()){
                 navigateRoute(target.href);
+                u.redraw();
             }
         }
     }, false);

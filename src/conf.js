@@ -42,7 +42,6 @@ function strutsSetup(options) {
 
 
 function strutsReady(func){
-    console.log("***********");
     if(appReady){
         func();
     }else{
