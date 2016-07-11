@@ -10,99 +10,83 @@ var _ = require("lodash"),
 var fieldRegistry = {};
 
 
- function validateField(value, validators, errors, next) {
-     if(!validators || !validators.length){
-         next(value, errors);
-     }else{
-         var func = validators.shift();
-         func(value, function (value, msg) {
-             if(msg){
-                errors.push(msg);
-                validators.splice(0, validators.length);
-                 value = null;
-             }
-             validateField(value, validators, errors, next);
-         });
-     }
- }
+function validateField(value, validators, errors, callback){
+    if(errors.length || validators.length === 0){
+        callback(value, errors);
+    }else{
+        var validator = validators.shift(), async = null;
+        try {
+            validator(value, function (promise) {
+                async = promise;
+            });
+        }catch(e){
+            errors.push(e);
+        }
+        if(async){
+            async.fail(function (e) {
+                errors.push(e);
+            }).always(function () {
+                validateField(value, validators, errors, callback);
+            });
+        }else{
+            validateField(value, validators, errors, callback);
+        }
+    }
+};
 
 
 function FormField(options) {
     "use strict";
-    var ops = this.options = _.extend({}, this.options, options);
+    var ops = this.state = _.extend({}, this.options, options), state = ops;
     this.name = ops.name;
     this.id = "id_" + this.name + "" + _.uniqueId();
     var widget = ops.widget || "string";
     this.widget = _.isString(widget) ? {type: widget} : widget;
-    this._disabled = !!options.disabled;
-    this._status = "ready";
-    this._bound = false;
-    this._errors = [];
-    this._value = null;
-    this._validators = ops.validators ? ops.validators.slice(0) : [];
-    this._readyCallbacks = [];
+    this.state._validating = false;
+    this.state._dirty = true;
+    this.state._data = null;
+    this.state._errors = [];
+    this.state._value = null;
+    this.state._bound = false;
+    this.state._validators = ops.validators ? ops.validators.slice(0) : [];
+    this.state._readyCallbacks = [];
 
-    if(this.initialize){
-        this.initialize.apply(this, arguments);
-    }
+    this.initialize.apply(this, arguments);
 
     if (options.hasOwnProperty("value")) {
-        this.options.initialValue = options.value;
+        this.state.initialValue = options.value;
+    }
+
+    var initial = this.initial;
+    if(initial != null){
+        this.setValue(initial);
     }
 }
 
 FormField.prototype = {
     constructor: FormField,
+    initialize: _.noop,
     options: {
         emptyValue: null,
         required: true,
         initialValue: "",
     },
-    isMultipart: function(){
-        return false;
+    setBound: function (bound) {
+        this.state._bound = !!bound;
     },
-    getEmptyValue: function () {
-       return this.options.emptyValue;
-    },
-    getInitialValue: function () {
-       return this.options.initialValue;
-    },
-    setInitialValue: function (value) {
-        this.options.initialValue = value;
-    },
-    isRequired: function(){
-        return this.options.required;
-    },
-    isHidden: function(){
-        return this.getWidgetClass().prototype.hidden;
-    },
-    isBound: function () {
-        return this._bound;
+    isBound: function(){
+        return this.state._bound;
     },
     isEmpty: function(value){
         "use strict";
-        return value === null || value === '' || value === undefined || (value && value.length === 0);
+        return value === null || value === '' || value === undefined
+            || (value && value.length === 0) ;
     },
     isReady: function () {
-        return this._status === 'ready';
+        return !this.state._validating;
     },
     isValid: function () {
-        return this._errors.length === 0;
-    },
-    isDisabled: function(){
-        return this._disabled || !this.isReady();
-    },
-    getOptions: function () {
-        return this.options;
-    },
-    setDisabled: function(value){
-        this._disabled = value;
-    },
-    getChoices: function () {
-        return this.options.choices;
-    },
-    setChoices: function (choices) {
-        this.options.choices = choices;
+        return this.state._errors.length === 0;
     },
     getWidgetClass: function(){
         return widgets.widget(this.widget.type);
@@ -111,135 +95,181 @@ FormField.prototype = {
         "use strict";
         return value;
     },
-    toString: function(){
+    toQuery: function(){
         "use strict";
-        return "" + this.value;
+        return this.getValue();
     },
     toJSON: function(){
         "use strict";
-        return this.value;
+        return this.getValue();
     },
     getErrors: function () {
-        return this._errors;
+        return this.state._errors;
+    },
+    clearErrors: function () {
+        return this.state._errors = [];
     },
     getValue: function () {
         "use strict";
-        if(!this.isBound()){
-            return this.getInitialValue();
-        }
-        return this._errors.length === 0 ? this._value : null;
+        return this.state._errors.length === 0 ? this.state._value : null;
     },
     setValue: function (value, next) {
         "use strict";
+        this.state._data = value;
+        this.state._dirty = true;
         this._runValidators(value, next);
-    },
-    getHelp: function () {
-        return this.options.help;
-    },
-    getLabel: function () {
-        return this.options.label;
-    },
-    setHelp: function (value) {
-        this.options.help = value;
-    },
-    setLabel: function (value) {
-        this.options.label = value;
     },
     getWidgetAttributes: function () {
         return {};
     },
     callWhenReady: function(callback){
-        if(this.isReady()){
-            callback()
-        }else{
-            this._readyCallbacks.push(callback);
+        this.state._readyCallbacks.push(callback);
+        if(this.ready){
+            this._notifyReady();
         }
-    },
-    _getValidators: function () {
-      var validators = [], self = this;
-
-        validators.push(function (value, cb) {
-            try {
-                value = self.toJS(value);
-                cb(value);
-            }catch (e){
-                cb(null, e.message);
-            }
-        });
-
-        if(this.validate){
-            validators.push(function(value, next){
-                try{
-                    self.validate.apply(self, arguments);
-                }catch(e){
-                    next(null, {code: "invalid", message: e.message});
-                }
-            })
-        }
-
-        validators.splice.apply(validators, [0, 0].concat(this._validators));
-        return validators;
-    },
-    _updateValue: function (value) {
-        this._value = value;
     },
     addError: function (msg) {
         if(_.isString(msg)){
-            msg = {message: msg};
+            msg = {message: msg, code: "invalid"};
+        }else if(msg instanceof Error){
+           msg = {message: msg.message, stack: msg.stack, code: "invalid"}
         }
-        this._errors.push(msg);
+        this.state._errors.push(msg);
+    },
+    validate: function(next){
+        if(this.state._validating){
+            this.callWhenReady(next);
+        }else{
+            if(this.state._dirty){
+                this._runValidators(this.state._data, next);
+            }else{
+                next(this);
+            }
+        }
+    },
+    getBoundErrors: function(){
+        return this.isBound() ? this.getErrors() : [];
+    },
+    getBoundData: function(){
+        return this.isValid() ? this.getValue() : this.state._data;
+    },
+    clean: function (value) {
+        return value;
+    },
+    _notifyReady: function(){
+       var callbacks = this.state._readyCallbacks;
+        while(callbacks && callbacks.length){
+            callbacks.shift()(this);
+        }
     },
     _runValidators: function (value, next) {
       var errors = [], self = this;
-        if(!this.isReady()){
-           throw new Error("Cannot set value during validation");
+        if(!this.ready || this.disabled){
+           throw new Error("Not ready to be changed");
         }
-        this._status = 'validating';
-        this._errors = [];
-        if(self.isEmpty(value)){
-            if(this.isRequired()){
-                errors.push({"code": "required", message: "This field is required"})
-                value = null;
-            }else{
-                value = this.getEmptyValue();
-            }
+        var validators = this.state._validators.slice(0);
+        this.state._validating = true;
+        this.state._errors = [];
+        if(self.isEmpty(value) && this.required){
+            errors.push({"code": "required", message: "This field is required"})
+            value = null;
             self._completeValidation(value, errors, next);
         }else{
-            validateField(value, this._getValidators(), errors, function(value, errors){
+            value = this._runCleaner(value, errors, this.toJS);
+            validateField(value, validators, errors, function(value, errors){
                 self._completeValidation(value, errors, next);
             });
         }
     },
     _completeValidation: function (value, errors, next) {
         var self = this;
-        _.each(errors, function(){ self.addError.apply(self, arguments) });
-        if(self._errors.length === 0){
-            self._bound = true;
-            self._updateValue(value);
-        }else{
-            self._value = null;
-            self._bound = false;
+        if(!errors.length){
+            value = this._runCleaner(value, errors, this.clean);
         }
-        self._status = 'ready';
-        _.each(self._readyCallbacks, function (func) {
-            func();
-        })
-        self._readyCallbacks = [];
-        if(next){
+        _.each(errors, _.bind(self.addError, this));
+        if(self.state._errors.length === 0){
+            this.state._value = value;
+        }else{
+            self.state._value = null;
+        }
+        self.state._validating = false;
+        self.state._dirty = false;
+        self._notifyReady();
+        self.state._readyCallbacks = [];
+        if(typeof next === 'function'){
             next(self);
         }
+    },
+    _runCleaner: function (value, errors, func) {
+        try {
+            return func.call(this, value);
+        }catch(e){
+            errors.push({code: "invalid", message: e.message});
+        }
+        return null;
     }
 };
 
 
 FormField.extend = function(){
     var class_ = u.utils.extend.apply(this, arguments);
-    class_.prototype.options = _.defaultsDeep(class_.prototype.options, this.prototype.options);
+    class_.prototype.options = _.merge({}, this.prototype.options, class_.prototype.options);
     return class_;
 }
 
+function createProperty(name){
+    return {
+        get: function(){
+            var value = this.state[name];
+            if(typeof value === 'function'){
+                value = value();
+            }
+            return value;
+        },
+        set: function(value){
+            this.state[name] = value;
+        }
+    }
+}
 
-utils.beanify(FormField, ['help', 'label', 'errors', 'choices', 'required', 'emptyValue']);
+Object.defineProperties(FormField.prototype, {
+    ready: {
+        get: function () {
+            return !this.state._validating;
+        }
+    },
+    multipart: {
+        get: function () {
+            return this.getWidgetClass().prototype.multipart;
+        }
+    },
+    hidden: {
+        get: function () {
+            return this.getWidgetClass().prototype.hidden;
+        }
+    },
+    data: {
+        get: function () {
+            return this.getBoundData();
+        }
+    },
+    initial: {
+        get: function () {
+            return this.state.initialValue;
+        }
+    },
+    errors: {
+        get: function () {
+            return this.state._errors;
+        }
+    },
+    disabled: createProperty("disabled"),
+    help: createProperty("help"),
+    label: createProperty("label"),
+    choices: createProperty("choices"),
+    required: createProperty("required"),
+});
+
 
 
 function registerField(name, options) {
@@ -323,7 +353,7 @@ u.component("u-field", {
         var label = field.label ? u("label.u-form-label", {"for": field.id}, field.label) : null;
         var help = field.help ? u(".u-form-help", field.help) : null;
         var errors = u("ul.u-form-errors",
-            _.map(field.getErrors(), function (msg) {
+            _.map(field.getBoundErrors(), function (msg) {
                 return u("li", self.formatMessage(field.name, msg.code, msg.message));
             })
         );
@@ -340,6 +370,7 @@ u.component("u-field", {
             layout: ctx.layout,
             attrs: field.getWidgetAttributes()
         });
+
         var widget = u(componentClass, attrs);
 
         var layoutFunc = componentClass[layout] || this[layout]
@@ -354,12 +385,12 @@ u.component("u-field", {
             label: label
         }
 
-        if(field.isHidden()){
+        if(field.hidden){
             return widget
         }
 
         return u(".u-form-field.u-form-field-"+field.type + "."+layoutClass,
-            {class: [{"has-error": !ctx.field.isValid()}, ctx.class]},
+            {class: [{"has-error": !field.isValid() && field.isBound()}, ctx.class]},
             layoutFunc.call(this,layoutContext)
         );
     }
@@ -372,21 +403,24 @@ registerField("multiple-choice", {
             return parseInt(value);
         },
         widget: "multiple-select",
+        initialValue: [],
     },
     toJS: function (value) {
         if(!_.isArray(value)){
             value = [value];
         }
-        var coerce = this.options.coerce;
-        return _.map(value, function(v){
+        var coerce = this.state.coerce;
+        var result =  _.map(value, function(v){
             "use strict";
             return coerce(v);
         });
+        return result;
     },
     toJSON: function () {
-        return this.value;
+        var value = this.getValue();
+        return value;
     },
-    validate: function(values, next){
+    clean: function(values){
         "use strict";
         var choices = this.choices;
         var invalids = [];
@@ -399,10 +433,9 @@ registerField("multiple-choice", {
             }
         });
         if(invalids.length){
-            next(null, invalids.join(", ") + " are not valid choices");
-        }else{
-            next(values);
+            throw new Error(invalids.join(", ") + " are not valid choices");
         }
+        return values;
     }
 });
 
@@ -415,56 +448,82 @@ registerField("choice", {
         widget: "select",
     },
     toJS: function (value) {
-        return this.options.coerce(value);
+        return this.state.coerce(value);
     },
     toJSON: function () {
-        return this.value;
+        return this.getValue();
     },
-    validate: function(value, next){
+    clean: function(value){
         "use strict";
         var choices = this.choices;
         var valid = _.some(choices, function(item){
             return item.value === value;
         });
         if(!valid){
-            next(null, "" + value + " is an invalid choice");
-        }else{
-            next(value);
+            throw new Error("" + value + " is an invalid choice");
         }
+        return value;
     }
 });
 
+function updateInitialChoice(state) {
+    var initial = state.initialValue, choices = state.choices;
+    var exists = _.some(choices, function (item) {
+        return String(item.value) === String(initial);
+    });
+    if(!exists && choices.length){
+        state.initialValue = choices[0].value;
+    }
+}
+
+Object.defineProperties(fieldRegistry['choice'].prototype, {
+    initial: {
+        get: function () {
+            updateInitialChoice(this.state);
+            return this.state.initialValue;
+        }
+    },
+    choices:{
+        get: function () {
+            return this.state.choices;
+        },
+        set: function (choices) {
+            this.state.choices = choices;
+            updateInitialChoice(this.state);
+        }
+    }
+})
 
 registerField("date", {
-    widget: "date",
     options: {
+        widget: "date",
         min: null,
         max: null,
         format: "DD MMMM, yyyy"
     },
     toJS: function (value) {
         if(_.isString(value)){
-            return moment(value, this.options.format).toDate();
+            return moment(value, this.state.format).toDate();
         }
         return value;
     },
     toJSON: function () {
-        return moment(this.getValue()).toISOString(this.options.format);
+        return moment(this.getValue()).toISOString(this.state.format);
     },
-    toString: function(){
+    toQuery: function(){
         "use strict";
-        return moment(this.getValue()).format(this.options.format)
+        return moment(this.getValue()).format(this.state.format)
     },
-    validate: function(value, next){
+    clean: function(value){
         "use strict";
-        var op = this.options;
+        var op = this.state;
         if(op.min != null && value <= op.min){
             throw new Error("Value cannot be less than " + op.min);
         }
         if(op.max != null && value >= op.max){
             throw new Error("Value cannot be more than " + op.max);
         }
-        next(value);
+        return value;
     }
 });
 
@@ -473,32 +532,32 @@ registerField("datetime", {
     options: {
         min: null,
         max: null,
-        format: "dd/MM/yyyy hh:mm"
+        format: "DD/MM/YYYY HH:mm",
+        widget: "datetime",
     },
-    widget: "datetime",
     toJS: function (value) {
         if(_.isString(value)){
-            return moment(value, this.options.format).toDate();
+            return moment(value, this.state.format).toDate();
         }
         return value;
     },
     toJSON: function () {
         return this.getValue();
     },
-    toString: function(){
+    toQuery: function(){
         "use strict";
-        return moment(this.getValue()).format(this.options.format)
+        return moment(this.getValue()).format(this.state.format)
     },
-    validate: function(value, next){
+    clean: function(value){
         "use strict";
-        var op = this.options;
+        var op = this.state;
         if(op.min != null && value <= op.min){
             throw new Error("Value cannot be less than " + op.min);
         }
         if(op.max != null && value >= op.max){
             throw new Error("Value cannot be more than " + op.max);
         }
-        next(value);
+        return value;
     }
 });
 
@@ -513,7 +572,7 @@ registerField("file", {
     toJSON: function () {
         return this.getValue();
     },
-    toString: function(){
+    toQuery: function(){
         "use strict";
         return this.getValue();
     }
@@ -530,7 +589,7 @@ registerField("multiple-file", {
     toJSON: function () {
         return this.getValue();
     },
-    toString: function(){
+    toQuery: function(){
         "use strict";
         return this.getValue();
     }
@@ -545,16 +604,17 @@ registerField("boolean", {
     },
     toJS: function (value) {
         if(_.isString(value)){
-            value = value in {true:1, on:2, yes:3};
+            value = value in {true:1, on:2, yes:3} || (this.state.initialValue && value == String(this.state.initialValue));
         }
         return !! value;
     },
     toJSON: function () {
         return this.getValue();
     },
-    toString: function(){
+    toQuery: function(){
         "use strict";
-        return this.getValue() ? "true" : "";
+        var value = this.state.initialValue || "true";
+        return this.getValue() ? value : "";
     }
 });
 
@@ -568,16 +628,16 @@ registerField("number", {
     toJS: function (value) {
         return parseFloat(value);
     },
-    validate: function(value, next){
+    clean: function(value){
         "use strict";
-        var op = this.options;
+        var op = this.state;
         if(op.min != null && value <= op.min){
             throw new Error("Value cannot be less than " + op.min);
         }
         if(op.max != null && value >= op.max){
             throw new Error("Value cannot be more than " + op.max);
         }
-        next(value);
+        return value;
     }
 });
 
@@ -591,16 +651,39 @@ registerField("integer", {
     toJS: function (value) {
         return parseInt(value);
     },
-    validate: function(value, next){
+    clean: function(value){
         "use strict";
-        var op = this.options;
+        var op = this.state;
         if(op.min != null && value <= op.min){
             throw new Error("Value cannot be less than " + op.min);
         }
         if(op.max != null && value >= op.max){
             throw new Error("Value cannot be more than " + op.max);
         }
-        next(value);
+        return value;
+    }
+});
+
+registerField("integer-list", {
+    options: {
+        widget: "hidden",
+        stringSeparator: ","
+    },
+    initialize: function(){
+        this.$super.initialize.apply(this, arguments);
+        this.baseField = new createField({type: "integer"});
+    },
+    toJS: function (value) {
+        var self = this;
+        if(_.isString(value)){
+            value = value.split(this.options.stringSeparator);
+        }
+        if(!_.isArray(value)){
+            value = [value];
+        }
+        return _.map(value, function (val) {
+            return self.baseField.toJS(val);
+        })
     }
 });
 
@@ -608,11 +691,11 @@ registerField("email", {
     options:{
         widget: "email"
     },
-    validate: function(value, next){
+    clean: function(value){
         if(!validators.isEmail(value)) {
             throw new Error("" + value + " is not a valid email");
         }
-        next(value)
+        return value;
     }
 });
 
@@ -622,16 +705,26 @@ registerField("phone", {
         widget: "phone",
         help: "Please enter your 10 digit mobile number",
     },
-    validate: function(value, next){
+    clean: function(value){
         if(!validators.isIndianMobilePhoneNumber(value)) {
             throw new Error("" + value + " is not a valid mobile phone number.");
         }
-        next(value);
-    },
-    prepare: function(value){
-        "use strict";
         value = value.replace(/\D+/, '');
         return value.substr(value.length-10);
+    }
+});
+
+
+registerField("phone-email", {
+    options:{
+        widget: "string",
+        help: "Please enter your email or 10 digit mobile number",
+    },
+    clean: function(value){
+        if(!validators.isPhoneOrEmail(value)) {
+            throw new Error("" + value + " is not a valid mobile phone number or email address");
+        }
+        return value;
     }
 });
 
@@ -643,9 +736,9 @@ registerField("string", {
         pattern: null,
         widget: "string"
    },
-    validate: function(value, next){
+    clean: function(value){
         "use strict";
-        var op = this.options, len = value.length, pattern;
+        var op = this.state, len = value.length, pattern;
         if(op.minLength != null && len <= op.minLength){
             throw new Error("Value cannot be less than " + op.minLength);
         }
@@ -658,7 +751,7 @@ registerField("string", {
                 throw new Error("Invalid value");
             }
         }
-        next(value);
+        return value;
     }
 });
 
@@ -670,16 +763,16 @@ registerField("text", {
         rows: 4,
         widget: "text"
    },
-    validate: function(value, next){
+    clean: function(value){
         "use strict";
-        var op = this.options, len = value.length, pattern;
+        var op = this.state, len = value.length;
         if(op.minLength != null && len <= op.minLength){
             throw new Error("Value cannot be less than " + op.minLength);
         }
         if(op.maxLength != null && len >= op.maxLength){
             throw new Error("Value cannot be more than " + op.maxLength);
         }
-        next(value);
+        return value;
     }
 });
 

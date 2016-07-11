@@ -17,6 +17,10 @@ function isIndianMobilePhoneNumber(value){
 }
 
 
+function isPhoneOrEmail(value){
+    return isEmail(value) || isIndianMobilePhoneNumber(value);
+}
+
 function validateEmail(message) {
     return function (value, next) {
         if(!isEmail(value)){
@@ -35,7 +39,7 @@ function validateRegex(pattern, message){
         if(!pattern.test(value)){
             next(null, message);
         }else{
-            next();
+            next(value);
         }
     };
 }
@@ -47,15 +51,30 @@ function validateIndianPhone(message){
         if(!pattern.test(value)){
             next(null, message);
         }else{
-            next();
+            next(value);
         }
     }
 }
 
+function validatePhoneOrEmail(message) {
+    return function (value, next) {
+        if(!isPhoneOrEmail(value)){
+            next(null, message);
+        }else{
+            next(value);
+        }
+    }
+}
+
+
+
 module.exports = {
     isEmail: isEmail,
+    isPhone: isIndianMobilePhoneNumber,
     isIndianMobilePhoneNumber: isIndianMobilePhoneNumber,
+    isPhoneOrEmail: isPhoneOrEmail,
     validateEmail: validateEmail,
     validatePattern: validateRegex,
     validateIndianPhoneNumber: validateIndianPhone,
+    validatePhoneOrEmail: validatePhoneOrEmail
 }

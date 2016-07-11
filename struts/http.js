@@ -2,25 +2,38 @@
 var $ = require("jquery"), u = require("uru");
 
 
-function HttpError(){
-    "use strict";
-    this.statusCode = -1;
-    this.url = "";
-    this.message = "";
-    this.data = "";
-}
-
-
 function HttpResponse(jqXHR, textStatus, result){
     "use strict";
     this.jqXHR = jqXHR;
     this.textStatus = textStatus;
+    this.status = jqXHR.status;
     if(textStatus === 'success'){
         this.content = result;
     }else{
         this.error = result;
     }
 }
+
+
+HttpResponse.prototype.isSuccess = function () {
+    return parseInt(this.jqXHR.status/100) == 2 ;
+}
+
+
+HttpResponse.prototype.isError = function () {
+    return !this.isSuccess();
+}
+
+
+HttpResponse.prototype.json = function () {
+    return this.jqXHR.responseJSON;
+}
+
+
+HttpResponse.prototype.text = function () {
+    return this.jqXHR.responseText;
+}
+
 
 HttpResponse.handle = function (deferred) {
     var result = $.Deferred();
@@ -60,6 +73,17 @@ function sendRequest(type, url, data){
 }
 
 
+function getHtml(url, data){
+    "use strict";
+    return $.ajax({
+        type: 'GET',
+        url: url,
+        data: data
+    }).always(function(){
+       u.redraw();
+    });
+}
+
 
 function get(url, data){
     "use strict";
@@ -87,7 +111,7 @@ function destroy(url, data){
 
 function patch(url, data){
     "use strict";
-    return sendRequest("DELETE", url, data);
+    return sendRequest("PATCH", url, data);
 }
 
 
@@ -110,6 +134,7 @@ module.exports = {
     put: put,
     patch: patch,
     destroy: destroy,
-    submit: submitForm
+    submit: submitForm,
+    getHtml: getHtml
 };
 

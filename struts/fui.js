@@ -20,15 +20,39 @@ u.component("tooltip", {
         };
         this.tooltip = new Foundation.Tooltip($(this.el), options);
     },
-    onUnMount: function () {
+    onUnmount: function () {
         this.tooltip.destroy();
     },
     render: function (ctx, content) {
         var tag = ctx.tag || "div";
         var message = ctx.message;
-        var attrs = _.omit(ctx, ['message'])
+        var attrs = _.omit(ctx, ['message', "tag"])
         attrs.title = message;
         return u(tag, attrs, content);
+    }
+});
+
+
+u.component("popover", {
+    initialize: function () {
+        var self = this;
+        this.on("change:open", function(){
+            self.dropdown.toggle();
+        });
+    },
+    onMount: function () {
+        var options = {
+            closeOnClick: true,
+            vOffset: 10,
+            hOffset: 10
+        };
+        this.dropdown = new Foundation.Dropdown($(this.el), options);
+    },
+    onUnmount: function () {
+        this.dropdown.destroy();
+    },
+    render: function (ctx, content) {
+        return u("div.dropdown-pane.popover", ctx, content);
     }
 });
 
@@ -36,13 +60,13 @@ u.component("tooltip", {
 function strutsFormMessage(form, ctx) {
     var messages = form.getNonFieldErrors();
     var failureMessage = form.getFailureMessage();
-    var needsCallout = messages.length || failureMessage;
+    var needsCallout = !form.isValid() && form.isBound() && (messages.length || failureMessage);
     return u("div.u-non-field-errors", {if: needsCallout, class: {"has-error": !form.isValid()}},
         u("div.u-form-errors",
             u("div.callout.alert",
                 u("div.error-heading", {if: failureMessage}, failureMessage),
                 u("ul", _.map(messages, function (msg) {
-                    return u("li", msg);
+                    return u("li", msg.message);
                 }))
             )
         )
@@ -95,8 +119,10 @@ function strutsFormActions(form, ctx, options) {
             )
         )
     }
-    return u("div.u-form-actions",
-        buttons
+    return u("div.u-form-actions.row.medium-up-1",
+        u(".column",
+            buttons
+        )
     )
 }
 

@@ -1,21 +1,22 @@
 
-var forms = require("./src/forms"),
-    fields = require("./src/fields"),
-    utils = require("./src/utils"),
-    validators = require("./src/validators"),
-    http = require("./src/http"),
-    routes = require("./src/routes"),
-    router = require("./src/router"),
-    widgets = require("./src/widgets"),
+var forms = require("./forms"),
+    fields = require("./fields"),
+    utils = require("./utils"),
+    validators = require("./validators"),
+    http = require("./http"),
+    routes = require("./routes"),
+    router = require("./router"),
+    widgets = require("./widgets"),
     $ = require("jquery"),
     u = require("uru"),
-    fui = require("./src/fui"),
-    conf = require("./src/conf");
+    fui = require("./fui"),
+    conf = require("./conf");
 
 
 module.exports = {
     u: u,
     Page: router.Page,
+    View: router.View,
     Form: forms.Form,
     utils: utils,
     validators: validators,
@@ -26,6 +27,7 @@ module.exports = {
     resolve: routes.resolve,
     reverse: routes.reverse,
     page: router.page,
+    view: router.view,
     pages: router.pages,
     router: router.router,
     route: routes.route,
@@ -34,7 +36,11 @@ module.exports = {
     fui: fui,
     setup: conf.setup,
     settings: conf.settings,
-    services: conf.services
+    services: conf.services,
+    ready: conf.ready,
+    static: conf.static,
+    media: conf.media,
+    context: conf.context
 }
 
 global.struts = module.exports;

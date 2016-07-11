@@ -9,24 +9,38 @@ var routerSet = [], monitorRoutes = false,
 
 var linkList = [];
 
+function Link(name, expr, component) {
+    this.name = name;
+    this.expr = name;
+    this.component;
+}
+
+Link.prototype = {
+    constructor: Link,
+    isPage: function(){
+        return this.component != null;
+    }
+}
 
 function normalizePathName(pathname){
     "use strict";
-    if(pathname.charAt(0) === '/'){
-        pathname = pathname.substr(1);
+    if(pathname.charAt(0) !== '/'){
+        pathname = "/" + pathname;
     }
     return pathname;
 }
 
 function handleRoute(event){
     "use strict";
-    var pathname = normalizePathName(window.location.pathname), href = window.location.href;
+    var pathname = normalizePathName(window.location.pathname), href = window.location.href, hash = location.hash;
     if(href === previousRoute){
+        if(hash && (hash = document.getElementById(hash.substr(1)))){
+            hash.scrollIntoView();
+        }
         return;
     }
     var result = matchRoute(pathname);
     if(result){
-        firstRoute = false;
         if(event) {
             event.preventDefault();
             event.stopImmediatePropagation();
@@ -35,7 +49,7 @@ function handleRoute(event){
             u.redraw(true);
         }
         result.func(result.args);
-    }else if(!firstRoute){
+    }else {
         window.location.reload();
     }
     firstRoute = false;
@@ -87,7 +101,7 @@ function navigateRoute(url, options){
     "use strict";
     options = options || {};
     var history = window.history, func = options && options.replace ? "replaceState" : "pushState";
-    history[func](null, options.title || "", url);
+    history[func]({uru: true}, options.title || "", url);
     if(!options.silent){
         handleRoute();
     }
@@ -122,9 +136,9 @@ function findLink(name){
 function resolve(url){
     "use strict";
     var i, match, result = {};
-    if(url.charAt(0) === '/'){
-        url = url.substr(1);
-    }
+    // if(url.charAt(0) === '/'){
+    //     url = url.substr(1);
+    // }
     for(i=0; i<linkList.length; i++){
         match = linkList[i].match(url);
         if(match){
@@ -145,7 +159,7 @@ function reverse(name, args){
     if(ln){
         path = ln.reverse(args);
         if(path){
-            return "/" + path;
+            return path;
         }
     }
     return false;
@@ -221,9 +235,9 @@ Router.prototype.contains = function (name) {
 Router.prototype.match = function (path) {
   "use strict";
     var routes = this.routes, i, ln, route, match;
-    if(path.charAt(0) === '/'){
-        path = path.substr(1);
-    }
+    // if(path.charAt(0) === '/'){
+    //     path = path.substr(1);
+    // }
     for(i=0; i< routes.length; i++){
         route = routes[i];
         ln = route.link;
@@ -252,6 +266,10 @@ Router.prototype.stop = function () {
     }
 }
 
+function isLocalUrl(target){
+    var value = target.getAttribute("href") || "";
+    return value.charAt(0) === '#';
+}
 
 function mount(){
     "use strict";
@@ -264,13 +282,10 @@ function mount(){
         if(target.target){
             return;
         }
-        if(target.tagName === 'A' && target.href && !utils.isExternalUrl(target.href)){
-            var ev = u.trigger("route:before", {href: target.href});
+        if(target.tagName === 'A' && target.href && !isLocalUrl(target) && !utils.isExternalUrl(target.href)){
             event.preventDefault();
-            if(!ev.isDefaultPrevented()){
-                navigateRoute(target.href);
-                u.redraw();
-            }
+            navigateRoute(target.href);
+            u.redraw();
         }
     }, false);
 }
@@ -290,7 +305,8 @@ function isRouted(name){
 
 
 
-function addLink(name, expr, component) {
+function addLink(name, expr) {
+    var component = u.component(name);
     var item = {name: name, pattern: expr, component: component};
 
     item.match = pattern.parse(item.pattern, true);
@@ -316,6 +332,9 @@ function links(predicate){
     var result = [], i, page;
     for(i=0; i< linkList.length; i++){
         page = linkList[i];
+        if(!page.component){
+            continue;
+        }
         if(!predicate || predicate(page.component)){
             result.push(page);
         }
