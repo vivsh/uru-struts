@@ -355,6 +355,9 @@ var Page = u.Component.extend({
         this.on("mount", scrollToFragment);
         this.onLoad();
     },
+    getPageTitle: function () {
+        return this.pageTitle;
+    },
     onLoad: function () {
         this.fetch()
     },
@@ -376,9 +379,12 @@ var Page = u.Component.extend({
         return owner[func].call(owner, Array.prototype.slice(arguments, 1));
     },
     onMount: function(){
-        var pageClass = this.getPageClass();
+        var pageClass = this.getPageClass(), title = this.getPageTitle();
         if(pageClass){
             $("body").addClass(pageClass);
+        }
+        if(title){
+            $("title").first().html(title);
         }
     },
     onUnmount: function(){
