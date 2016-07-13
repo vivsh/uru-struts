@@ -384,13 +384,18 @@ var Page = u.Component.extend({
             $("body").addClass(pageClass);
         }
         if(title){
-            $("title").first().html(title);
+            var titleEl = $("title").first();
+            this.previousPageTitle = titleEl.html();
+            titleEl.html(title);
         }
     },
     onUnmount: function(){
         var pageClass = this.getPageClass();
         if(pageClass){
             $("body").removeClass(pageClass);
+        }
+        if(this.previousPageTitle){
+            $("title").first().html(this.previousPageTitle);
         }
     },
     render: function (ctx, content) {
