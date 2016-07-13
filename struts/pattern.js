@@ -78,6 +78,16 @@ var types = {
             "use strict";
             return '[a-zA-Z]\\w+';
         }
+    },
+    slug:{
+        match: function (value) {
+            "use strict";
+            return value == 'slug';
+        },
+        pattern: function (value) {
+            "use strict";
+            return '^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$';
+        }
     }
 };
 
